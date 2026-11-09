@@ -17,6 +17,11 @@ import {
   writeTracked,
   type CapturedFile,
 } from "./safeFiles.js";
+import {
+  installServerActions,
+  uninstallServerActions,
+  type ServerActionFixtureHandle,
+} from "./serverActionFixtures.js";
 
 const COUNTER_SOURCE = `"use client";
 import React from "react";
@@ -47,7 +52,7 @@ const SERVER_FN_PROBE_SOURCE = `"use client";
 import React, { useState } from "react";
 // Direct client import of a "use server" module — the transport must resolve
 // through vprs's virtual client module (no bare specifier in the browser).
-import { getFavorites } from "../server/actions/favoriteActions.server.js";
+import { getItems } from "../server/actions/e2eActions.server.js";
 
 export function ServerFnProbe() {
   const [count, setCount] = useState<number | null>(null);
@@ -56,11 +61,11 @@ export function ServerFnProbe() {
       type="button"
       data-testid="server-fn-probe"
       onClick={async () => {
-        const names = await getFavorites();
-        setCount(names.length);
+        const items = await getItems();
+        setCount(items.length);
       }}
     >
-      {count === null ? "Probe server fn" : \`server says: \${count} favorites\`}
+      {count === null ? "Probe server fn" : \`server says: \${count} items\`}
     </button>
   );
 }
@@ -98,6 +103,7 @@ export function patchHomePage(source: string): string {
 
 export type ClientFixtureHandle = {
   slots: CapturedFile[];
+  actions: ServerActionFixtureHandle;
 };
 
 /**
@@ -126,6 +132,7 @@ export async function installClientFixtures(
   }
 
   const slots: CapturedFile[] = [];
+  const actions = await installServerActions(bidoofDir);
   try {
     slots.push(await writeTracked(counterFile, COUNTER_SOURCE));
     slots.push(await writeTracked(cssFile, COUNTER_CSS));
@@ -138,13 +145,13 @@ export async function installClientFixtures(
   } catch (err) {
     // Roll back anything already written so a failed setup never leaves the
     // demo half-patched (and never truncates page.tsx with empty defaults).
-    await restoreAll(slots).catch((restoreErr: unknown) => {
+    await uninstallClientFixtures({ slots, actions }).catch((restoreErr: unknown) => {
       console.error(restoreErr);
     });
     throw err;
   }
 
-  return { slots };
+  return { slots, actions };
 }
 
 /** Restore every successfully captured slot (created files deleted). */
@@ -152,6 +159,10 @@ export async function uninstallClientFixtures(
   handle: ClientFixtureHandle | undefined,
 ): Promise<void> {
   if (!handle) return;
-  // Restore in reverse order so the page goes back before we delete imports.
-  await restoreAll(handle.slots);
+  try {
+    // Restore in reverse order so the page goes back before we delete imports.
+    await restoreAll(handle.slots);
+  } finally {
+    await uninstallServerActions(handle.actions);
+  }
 }

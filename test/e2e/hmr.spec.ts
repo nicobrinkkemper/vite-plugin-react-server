@@ -10,8 +10,8 @@ const bidoofDir = resolveBidoofDir();
 //   PokemonSearch client island; its text input is the client-state marker
 //   that must survive an RSC refetch.
 // - `src/css/pokedex.module.css` — the page's stylesheet, for CSS HMR.
-// - `/pokedex/bulbasaur/` — a species page whose FavoriteButton drives the
-//   "use server" favorites action (persisted in the demo's SQLite db).
+// - `/pokedex/bulbasaur/` — a species page whose LikeButton drives the
+//   "use server" like action (persisted in the demo's SQLite db).
 
 const collectRscHmrLogs = (page: Page): string[] => {
   const logs: string[] = [];
@@ -161,25 +161,26 @@ test.describe('HMR in bidoof-template', () => {
     }
   });
 
-  test('favorites server action works and persists', async ({ page }) => {
+  test('like server action works and persists', async ({ page }) => {
+    // A fresh browser context is a fresh visitor, so the button starts on Like.
     await page.goto('/pokedex/bulbasaur/');
-    const button = page.locator(
-      '[aria-label="Add to favorites"], [aria-label="Remove from favorites"]',
-    );
-    await button.waitFor({ timeout: 15000 });
-    const initialLabel = await button.getAttribute('aria-label');
+    const like = page.getByRole('button', { name: 'Like', exact: true });
+    const unlike = page.getByRole('button', { name: 'Unlike', exact: true });
+    await like.waitFor({ timeout: 15000 });
+    const initialCount = Number(await like.getAttribute('data-count'));
 
-    await button.click();
-    const toggledLabel =
-      initialLabel === 'Add to favorites' ? 'Remove from favorites' : 'Add to favorites';
-    await expect(page.locator(`[aria-label="${toggledLabel}"]`)).toBeVisible({ timeout: 10000 });
+    await like.click();
+    await expect(unlike).toBeVisible({ timeout: 10000 });
+    await expect(unlike).toHaveAttribute('data-count', String(initialCount + 1));
 
     // Persisted server-side: the toggled state survives a full reload.
     await page.reload();
-    await expect(page.locator(`[aria-label="${toggledLabel}"]`)).toBeVisible({ timeout: 15000 });
+    await expect(unlike).toBeVisible({ timeout: 15000 });
+    await expect(unlike).toHaveAttribute('data-count', String(initialCount + 1));
 
     // Restore so the run leaves the demo's db as it found it.
-    await page.locator(`[aria-label="${toggledLabel}"]`).click();
-    await expect(page.locator(`[aria-label="${initialLabel}"]`)).toBeVisible({ timeout: 10000 });
+    await unlike.click();
+    await expect(like).toBeVisible({ timeout: 10000 });
+    await expect(like).toHaveAttribute('data-count', String(initialCount));
   });
 });
