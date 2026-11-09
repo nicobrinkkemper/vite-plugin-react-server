@@ -24,26 +24,32 @@ npm run build
 # 1c. Link the local build into each demo and exercise it end-to-end.
 #     A passing 'npm test' does not exclude regressions that only surface
 #     when the package is consumed via file:.. from a real downstream app.
+PLUGIN=$PWD
+(
 for demo in ~/code/bidoof-template ~/code/mmc ~/code/vprs-starter; do
   pushd "$demo"
-  cp package.json /tmp/$(basename "$demo").pkg.bak
-  cp -f package-lock.json /tmp/$(basename "$demo").lock.bak 2>/dev/null || true
-  node -e 'const p=require("./package.json");p.dependencies["vite-plugin-react-server"]="file:../vite-plugin-react-server";require("fs").writeFileSync("./package.json",JSON.stringify(p,null,2)+"\n");'
-  npm install
+  # --no-save links without touching package.json or the lockfile, whichever
+  # dependency group the demo keeps the plugin in.
+  npm install --no-save "$PLUGIN"
+  # npm keeps the published copy when a link does not land, and every step
+  # below would then pass against the wrong code. Stop here instead.
+  if [ "$(realpath node_modules/vite-plugin-react-server)" != "$(realpath "$PLUGIN")" ]; then
+    echo "$demo: vite-plugin-react-server is not linked to $PLUGIN" >&2
+    exit 1
+  fi
   npm run build           # bidoof-template: build:preview; mmc: build; vprs-starter: npm test (build:vercel + hydration smoke test)
   # Smoke-test the dev server too:
-  npx vite --port 4173 --strictPort &
+  ./node_modules/.bin/vite --port 4173 --strictPort &
   VITE_PID=$!
   sleep 5
   curl -fS http://localhost:4173/ > /dev/null
   curl -fS -H "Accept: text/x-component" http://localhost:4173/index.rsc > /dev/null
   kill $VITE_PID
-  # Restore the demo so you don't accidentally commit the file:.. link.
-  cp /tmp/$(basename "$demo").pkg.bak ./package.json
-  cp /tmp/$(basename "$demo").lock.bak ./package-lock.json 2>/dev/null || true
-  npm install
+  # Back to the versions the lockfile pins.
+  npm ci
   popd
 done
+)
 
 # 1d. Full Playwright browser gate (runs against bidoof-template per
 #     playwright.config.ts). Do NOT substitute the hmr.spec.ts subset — the
@@ -52,8 +58,13 @@ done
 #     client-imported server functions, state-preserving CSS/React HMR,
 #     server-action persistence, and dynamic route props. Specs that need
 #     Counter / ServerFnProbe /e2e-actions install those under test/e2e/*Fixtures
-#     and tear them down only after a successful capture.
+#     and tear them down only after a successful capture. They write into the
+#     demo's src/, so run this on a checkout with no work in progress.
+#     The gate drives whichever plugin bidoof-template has installed, and 1c
+#     put the published one back, so install the candidate first.
+SKIP_BUILD=1 KEEP=1 ./scripts/validate-sibling.sh ~/code/bidoof-template true
 npx playwright test
+(cd ~/code/bidoof-template && npm ci)
 
 # Every test must pass. A test marked test.fail() pins a filed bug — an
 # UNEXPECTED pass there means the bug got fixed; remove the annotation rather
@@ -195,7 +206,7 @@ The plugin's `configResolved` hook auto-creates the `react-server-dom-esm` symli
 - [ ] `mmc` linked via `file:../vite-plugin-react-server` — `npm run build` succeeds; dev server starts cleanly
 - [ ] `vprs-starter` linked via `file:../vite-plugin-react-server` — `npm test` succeeds: build:vercel plus the Playwright hydration smoke test over the per-request `/`, a prerendered docs page and a client navigation (the only consumer of `runner: "edge"` + `transport: "webpack"` + `inlineFlight: "stream"`)
 - [ ] All three demo repos restored to their committed `package.json`/`package-lock.json` afterwards
-- [ ] `npx playwright test` — full browser gate green (both dev conditions; do not substitute the hmr.spec.ts subset)
+- [ ] `npx playwright test` — full browser gate green against the candidate installed in `bidoof-template` (both dev conditions; do not substitute the hmr.spec.ts subset)
 - [ ] `npm run version:<type>` — commit `package.json` + `package-lock.json`, PR, merge
 - [ ] `git tag -a v<version> -m "v<version>" && git push origin v<version>` — on merged `main`
 - [ ] `npm publish` (2FA — human step; `verify:tag` blocks an untagged publish, `test:stable-names` blocks a hashed URL whose bytes changed)
