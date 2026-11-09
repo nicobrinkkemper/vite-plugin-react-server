@@ -72,6 +72,33 @@ const DEFAULT_ERROR = /^error\.(t|j)sx$/;
 const DEFAULT_LOADING = /^loading\.(t|j)sx$/;
 const DEFAULT_HEAD = /^head\.(t|j)s$/;
 
+/** Every file convention the scan reads, with the defaults filled in. */
+export function resolveScanPatterns(
+  patterns: ScanPatterns = {},
+): Required<ScanPatterns> {
+  return {
+    pagePattern: patterns.pagePattern ?? DEFAULT_PAGE,
+    propsPattern: patterns.propsPattern ?? DEFAULT_PROPS,
+    layoutPattern: patterns.layoutPattern ?? DEFAULT_LAYOUT,
+    indexPattern: patterns.indexPattern ?? DEFAULT_INDEX,
+    errorPattern: patterns.errorPattern ?? DEFAULT_ERROR,
+    loadingPattern: patterns.loadingPattern ?? DEFAULT_LOADING,
+    headPattern: patterns.headPattern ?? DEFAULT_HEAD,
+  };
+}
+
+/**
+ * True when a file named `name` is one the scan reads (a page, loader,
+ * layout, boundary, fallback or head). Adding or removing such a file changes
+ * the scan's result; the dev server uses this to know when to rescan.
+ */
+export function isScannedFileName(
+  name: string,
+  patterns: Required<ScanPatterns>,
+): boolean {
+  return Object.values(patterns).some((p) => p.test(name));
+}
+
 /** A `(group)` directory: shares its layers with children, adds no URL segment. */
 const isPathlessGroup = (name: string) =>
   name.startsWith("(") && name.endsWith(")") && name.length > 2;
@@ -86,13 +113,15 @@ export function scanRoutes(
   routesDir: string,
   patterns: ScanPatterns = {},
 ): RouteEntry[] {
-  const pagePattern = patterns.pagePattern ?? DEFAULT_PAGE;
-  const propsPattern = patterns.propsPattern ?? DEFAULT_PROPS;
-  const layoutPattern = patterns.layoutPattern ?? DEFAULT_LAYOUT;
-  const indexPattern = patterns.indexPattern ?? DEFAULT_INDEX;
-  const errorPattern = patterns.errorPattern ?? DEFAULT_ERROR;
-  const loadingPattern = patterns.loadingPattern ?? DEFAULT_LOADING;
-  const headPattern = patterns.headPattern ?? DEFAULT_HEAD;
+  const {
+    pagePattern,
+    propsPattern,
+    layoutPattern,
+    indexPattern,
+    errorPattern,
+    loadingPattern,
+    headPattern,
+  } = resolveScanPatterns(patterns);
 
   const find = (names: string[], dir: string, p: RegExp): string | undefined => {
     const n = names.find((name) => p.test(name));

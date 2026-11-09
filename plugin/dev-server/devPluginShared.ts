@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { detectClientModule } from "react-server-loader/directives";
 import type { AutoDiscoveredFiles } from "../types.js";
+import type { RouteTree } from "../router/fileRouter.js";
 
 /**
  * An empty AutoDiscoveredFiles. Both dev-server plugins (server + client) hand
@@ -133,4 +134,115 @@ export function isServerGraphFile(
   if (!server || file.includes("/node_modules/")) return false;
   const mods = server.environments?.["server"]?.moduleGraph?.getModulesByFile(file);
   return !!mods && mods.size > 0;
+}
+
+type RouteTreeWatchServer = {
+  watcher: {
+    on(event: "add" | "unlink", cb: (file: string) => void): unknown;
+    on(event: "ready", cb: () => void): unknown;
+  };
+  httpServer?: { once(event: "listening" | "close", cb: () => void): unknown } | null;
+  restart(): Promise<void>;
+  config: { logger: { info(msg: string): void; error(msg: string): void } };
+};
+
+/**
+ * Keep the `routes` table in step with the route tree while the dev server
+ * runs. The table is a scan of the tree; every route file added or removed
+ * rescans it, synchronously, before Vite's own hot update for the file runs
+ * (the watcher calls listeners at once, Vite's handler after an await):
+ *
+ * - The table's resolvers (Page, props, layouts) switch to the new scan, and
+ *   the per-url page/props resolutions the dev server cached are dropped.
+ *   Vite's hot update for the file then runs as for any other module (server
+ *   and client graphs invalidated, client HMR), and the dev plugins'
+ *   `hotUpdate` sends the flight refetch, so the open page updates in place.
+ * - When a route appeared or disappeared, config derived from the route list
+ *   at resolve time (build inputs) is stale too, so the server restarts as
+ *   well. Plugin instances passed inline survive a restart and keep this
+ *   table, so every change rescans, including one that lands while a restart
+ *   is pending; only the restart itself is coalesced.
+ *
+ * A restart swaps servers in steps, and a route change can land in any of
+ * them: seen by the old watcher while `restart()` would only return the run
+ * in flight, seen by the new watcher before the swap, when `restart()` would
+ * start a second run beside the first, or by neither (the old one closes
+ * first, the new one's initial scan takes the file in silently). So a server
+ * compares the table with the route set it was configured from, not with the
+ * last scan, and restarts only once it listens; until then the restart stays
+ * owed. It rescans when it listens and on every `ready` of its watcher, in
+ * either order: chokidar can emit `ready` more than once, the first time
+ * before its scan is done. Without an http server (middleware mode) nothing
+ * marks the end of a swap, so it restarts at once.
+ *
+ * Edits need nothing here: the file set is unchanged and HMR reloads the
+ * module.
+ */
+export function watchRouteTree(
+  server: RouteTreeWatchServer,
+  opts: {
+    routeTree: RouteTree | undefined;
+    autoDiscoveredFiles: Pick<AutoDiscoveredFiles, "urlMap">;
+  },
+): void {
+  const { routeTree } = opts;
+  if (!routeTree) return;
+  const configuredFrom = routeTree.routeSetVersion();
+  let listening = !server.httpServer;
+  let pendingRestart: ReturnType<typeof setTimeout> | undefined;
+  const rescan = (cause: string) => {
+    try {
+      routeTree.rescan();
+    } catch (error) {
+      // A tree the scan rejects (two pages on one url) keeps the last good
+      // table until it is fixed; a restart would not scan any differently.
+      server.config.logger.error(
+        `[vite-plugin-react-server] ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return;
+    }
+    opts.autoDiscoveredFiles.urlMap.clear();
+    if (!listening || pendingRestart || routeTree.routeSetVersion() === configuredFrom) return;
+    server.config.logger.info(
+      `[vite-plugin-react-server] route added or removed (${cause}), restarting to rescan routes`,
+    );
+    // A burst (a folder moved in, several files saved at once) coalesces into
+    // one restart.
+    pendingRestart = setTimeout(() => {
+      pendingRestart = undefined;
+      server.restart().catch((error: unknown) => {
+        server.config.logger.error(
+          `[vite-plugin-react-server] restart failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+    }, 50);
+  };
+  const onChange = (file: string) => {
+    if (routeTree.isRouteFile(file)) rescan(file);
+  };
+  server.watcher.on("add", onChange);
+  server.watcher.on("unlink", onChange);
+  server.watcher.on("ready", () => rescan("while the server restarted"));
+  server.httpServer?.once("listening", () => {
+    listening = true;
+    rescan("while the server restarted");
+  });
+  // The server that replaces this one owes the restart from here on.
+  server.httpServer?.once("close", () => clearTimeout(pendingRestart));
+}
+
+/**
+ * True when a hot update adds or removes a route file. The server tree around
+ * it changed even when the file is a `"use client"` module whose own update
+ * Vite owns, so `hotUpdate` sends the flight refetch for it either way.
+ */
+export function isRouteTreeAddOrRemove(
+  routeTree: RouteTree | undefined,
+  ctx: { type?: string; file: string },
+): boolean {
+  return (
+    !!routeTree &&
+    (ctx.type === "create" || ctx.type === "delete") &&
+    routeTree.isRouteFile(ctx.file)
+  );
 }

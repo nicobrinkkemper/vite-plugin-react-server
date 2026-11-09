@@ -17,7 +17,6 @@ export const configureReactServer: CreateReactWorkerServerFn =
     hmrChannel,
     onWorkerCreated,
     serverManifest,
-    resolvedConfig,
   }) {
     const logger = server.config.customLogger || server.config.logger;
     const verbose = userOptions.verbose || false;
@@ -61,7 +60,7 @@ export const configureReactServer: CreateReactWorkerServerFn =
       configEnv,
       hmrChannel: effectiveHmrChannel,
       serverManifest,
-      resolvedConfig,
+      resolvedConfig: server.config,
       onWorkerCreated: (worker: any, restart?: () => Promise<void>) => {
         currentWorker = worker;
         if (onWorkerCreated) {

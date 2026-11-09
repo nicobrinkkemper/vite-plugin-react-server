@@ -55,7 +55,6 @@ export type ConfigureReactServerFn = (options: {
   autoDiscoveredFiles: AutoDiscoveredFiles;
   userOptions: ResolvedUserOptions;
   serverManifest: Manifest;
-  resolvedConfig: ResolvedConfig;
   hmrChannel?: MessageChannel;
   onWorkerCreated?: (worker: Worker, restart?: () => Promise<void>) => void;
 }) => void;

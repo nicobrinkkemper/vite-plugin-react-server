@@ -53,6 +53,7 @@ export const Page = () => <div>Test Page</div>;`
     server = await createServer({
       mode: "test",
       root: testDir,
+      cacheDir: join(process.cwd(), "node_modules", `.vite-test-${port}`),
       plugins: [
         vitePluginReactServer({
           ...testUserOptions,
