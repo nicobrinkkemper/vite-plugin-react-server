@@ -13,7 +13,6 @@ import { handleServerAction } from "./handleServerAction.server.js";
 import type { ConfigureReactServerFn } from "./types.js";
 import { handleError } from "../error/handleError.js";
 import { cleanupWorker } from "../helpers/workerCleanup.js";
-import { mergeConfig, type ResolvedConfig } from "vite";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
 import { isNotFound, isRedirect } from "../router/loaderSignals.js";
 import { RSC_OUTPUT_PATH } from "../config/routeExportNames.js";
@@ -24,7 +23,6 @@ export const configureReactServer: ConfigureReactServerFn =
     autoDiscoveredFiles,
     userOptions: _userOptions,
     serverManifest,
-    resolvedConfig,
   }) {
     const activeStreams = new Set<ServerResponse>();
     const activeControllers = new Map<
@@ -43,12 +41,6 @@ export const configureReactServer: ConfigureReactServerFn =
       // we can use these directly to create the handler
       ...userHandlerOptions
     } = _userOptions;
-
-    server.config = mergeConfig(
-      server.config,
-      resolvedConfig
-    ) as ResolvedConfig;
-
 
     // Handle Vite server restarts
     server.ws.on("restart", (path) => {

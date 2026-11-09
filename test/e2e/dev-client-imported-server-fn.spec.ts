@@ -13,7 +13,7 @@
  * resolves to a dev URL. Prod (Rollup-bundled) always worked.
  *
  * Drives the e2e-owned ServerFnProbe (installed via clientFixtures) on `/`.
- * The probe imports getFavorites ("use server") directly and calls it on click.
+ * The probe imports getItems ("use server") directly and calls it on click.
  */
 import { test, expect } from "@playwright/test";
 import { type ChildProcess } from "node:child_process";
@@ -28,8 +28,8 @@ import { spawnViteDev, stopViteDev, waitForServer } from "./devServer.js";
 const bidoofDir = resolveBidoofDir();
 
 const MODES = [
-  { label: "dev:ssr (client-first)", condition: "", basePort: 33000 },
-  { label: "dev:rsc (server-first)", condition: "--conditions react-server", basePort: 34000 },
+  { label: "dev:ssr (client-first)", condition: "", basePort: 28000 },
+  { label: "dev:rsc (server-first)", condition: "--conditions react-server", basePort: 27000 },
 ];
 
 for (const mode of MODES) {
@@ -73,13 +73,13 @@ for (const mode of MODES) {
       await page.waitForLoadState("networkidle");
       await page.waitForTimeout(1000); // let the client hydrate
 
-      // ServerFnProbe imports getFavorites ("use server") directly; the click
+      // ServerFnProbe imports getItems ("use server") directly; the click
       // calls it. If the transport import were bare, the module would fail to
       // load and the button would never hydrate/update.
       const probe = page.getByTestId("server-fn-probe");
       await expect(probe).toHaveText("Probe server fn");
       await probe.click();
-      await expect(probe).toHaveText(/server says: \d+ favorites/);
+      await expect(probe).toHaveText("server says: 3 items");
 
       // No "bare specifier ... was not remapped" (or any) errors.
       expect(errors.join("\n")).not.toMatch(/bare specifier|not remapped/i);

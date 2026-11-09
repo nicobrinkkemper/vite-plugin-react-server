@@ -22,7 +22,7 @@ import { spawnViteDev, stopViteDev, waitForServer } from "./devServer.js";
 const bidoofDir = resolveBidoofDir();
 const cssFile = join(bidoofDir, "src/css/home.module.css");
 
-const PORT = 33000 + Math.floor(Math.random() * 1000);
+const PORT = 30000 + Math.floor(Math.random() * 1000);
 const BASE_URL = `http://localhost:${PORT}`;
 
 const FONT_FROM = "font-size: 42px";

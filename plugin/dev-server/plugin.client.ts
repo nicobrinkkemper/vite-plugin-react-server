@@ -2,7 +2,7 @@ import type { VitePluginFn } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.client.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
-import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile } from "./devPluginShared.js";
+import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile, watchRouteTree, isRouteTreeAddOrRemove } from "./devPluginShared.js";
 import { getDevShellHeadProvider } from "./devShellHeadProvider.js";
 import { mergeDevShellHead } from "./devShellHead.js";
 import type { ConfigEnv } from "vite";
@@ -63,9 +63,14 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       
       // Configure the React server for client environment (worker-based)
       // This uses the existing configureReactServer.client.js implementation
+      const autoDiscoveredFiles = emptyAutoDiscoveredFiles();
+      watchRouteTree(server, {
+        routeTree: userOptions.routeTree,
+        autoDiscoveredFiles,
+      });
       hmrHandler = configureReactServer({
         server,
-        autoDiscoveredFiles: emptyAutoDiscoveredFiles(),
+        autoDiscoveredFiles,
         userOptions,
         configEnv: configEnv!,
         serverManifest: {}, 
@@ -111,7 +116,9 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       // Normalize paths for comparison (handle both absolute and relative)
       const normalizedFile = file.replace(projectRoot, '').replace(/^\/+/, '');
       const isInModuleBase = normalizedFile.startsWith(moduleBase + '/');
-      const isSourceFile = isInModuleBase &&
+      // A route tree may sit outside the module base (`routes: fileRouter("app")`).
+      const isSourceFile =
+        (isInModuleBase || !!userOptions.routeTree?.isRouteFile(file)) &&
         (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.jsx') || file.endsWith('.js'));
       // CSS edits route through the same worker-invalidation path so the
       // ModuleRunner cache drops every reachable CSS module before the
@@ -167,7 +174,13 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
         return clientOwnedCss as never[];
       }
 
-      const isServerFile = (isSourceFile && !isClientFile) || isServerContentFile;
+      // A route file added or removed changes the server tree around it even
+      // when it is a "use client" boundary: refetch as for a server edit,
+      // while Vite still owns the client module's own update.
+      const isServerFile =
+        (isSourceFile &&
+          (!isClientFile || isRouteTreeAddOrRemove(userOptions.routeTree, ctx))) ||
+        isServerContentFile;
       const shouldInvalidateWorker = isServerFile || isCssFile;
 
       if (shouldInvalidateWorker && hmrHandler) {

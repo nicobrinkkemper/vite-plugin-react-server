@@ -1,4 +1,5 @@
-import { join, relative, resolve, sep } from "node:path";
+import { existsSync } from "node:fs";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   fillPattern,
   matchRoutes,
@@ -9,6 +10,8 @@ import {
   type RouteEntry,
   type RouteLayer,
   type ScanPatterns,
+  isScannedFileName,
+  resolveScanPatterns,
   scanRoutes,
 } from "./scanRoutes.js";
 
@@ -62,6 +65,30 @@ export type FileRouterConfig = {
    * renderer folds the nested tree. Empty array when the route is unwrapped.
    */
   layouts: (url: string) => RouteLayer[];
+  /**
+   * The dev server's handle on the scanned tree. Absent on a hand-rolled
+   * router table.
+   */
+  routeTree?: RouteTree;
+};
+
+/** The scanned route tree, for the dev server's watcher. */
+export type RouteTree = {
+  /**
+   * True when `file` (absolute) is one the scan reads: under the scanned
+   * directory and named like a page, loader, layout, boundary, fallback or
+   * head (the patterns `resolveScanPatterns` resolves).
+   */
+  isRouteFile: (file: string) => boolean;
+  /**
+   * Scan again and switch the table to the result. `routeSetChanged` is true
+   * when a route appeared or disappeared: the table's own lists follow, but
+   * config derived from them at resolve time (build inputs) has to resolve
+   * again, so the dev server restarts.
+   */
+  rescan: () => { routeSetChanged: boolean };
+  /** Counts the rescans that changed the route set. */
+  routeSetVersion: () => number;
 };
 
 export function fileRouter(
@@ -95,27 +122,48 @@ export function fileRouter(
   // produces (relative for a relative routesDir, which is the common case where
   // cwd is the project root). Supply `root` when cwd ≠ project root.
   const { root } = opts;
-  const scanned = scanRoutes(
-    root ? resolve(root, routesDir) : routesDir,
-    opts.patterns,
-  );
+  const scanDir = root ? resolve(root, routesDir) : routesDir;
+  const scanPatterns = resolveScanPatterns(opts.patterns);
+  const absScanDir = resolve(scanDir);
+  const isRouteFile = (file: string) => {
+    const rel = relative(absScanDir, resolve(file));
+    return (
+      rel !== "" &&
+      rel !== ".." &&
+      !rel.startsWith(".." + sep) &&
+      !isAbsolute(rel) &&
+      isScannedFileName(basename(file), scanPatterns)
+    );
+  };
   const toRel = (p: string) => relative(root!, p).split(sep).join("/");
-  const routes: RouteEntry[] = root
-    ? scanned.map((r) => ({
-        ...r,
-        page: toRel(r.page),
-        props: r.props ? toRel(r.props) : undefined,
-        layouts: r.layouts.map((l) => ({
-          component: l.component ? toRel(l.component) : undefined,
-          props: l.props ? toRel(l.props) : undefined,
-          error: l.error ? toRel(l.error) : undefined,
-          loading: l.loading ? toRel(l.loading) : undefined,
-          head: l.head ? toRel(l.head) : undefined,
-        })),
-      }))
-    : scanned;
+  const scan = (): RouteEntry[] => {
+    // A routes dir that does not exist (yet, or any more: deleted or moved
+    // while the dev server runs) is an empty route set, not a scan error.
+    if (!existsSync(scanDir)) return [];
+    const scanned = scanRoutes(scanDir, scanPatterns);
+    return root
+      ? scanned.map((r) => ({
+          ...r,
+          page: toRel(r.page),
+          props: r.props ? toRel(r.props) : undefined,
+          layouts: r.layouts.map((l) => ({
+            component: l.component ? toRel(l.component) : undefined,
+            props: l.props ? toRel(l.props) : undefined,
+            error: l.error ? toRel(l.error) : undefined,
+            loading: l.loading ? toRel(l.loading) : undefined,
+            head: l.head ? toRel(l.head) : undefined,
+          })),
+        }))
+      : scanned;
+  };
+  // The current scan. The url resolvers below read it per call, so a rescan
+  // takes effect on the next request. `patterns` and the static page list are
+  // updated in place: the resolved config holds those arrays themselves, and
+  // a dev-server restart keeps plugin instances passed inline to Vite (and
+  // with them this table), so they must already show the new route set.
+  let routes = scan();
+  let byPattern = new Map(routes.map((r) => [r.pattern, r] as const));
   const patterns = routes.map((r) => r.pattern);
-  const byPattern = new Map(routes.map((r) => [r.pattern, r] as const));
   const rscOutputPath = opts.rscOutputPath ?? RSC_OUTPUT_PATH;
   const stripHtmlSuffix = opts.stripHtmlSuffix ?? true;
   const forMatch = (url: string) =>
@@ -128,6 +176,26 @@ export function fileRouter(
   };
 
   const staticRoutes = routes.filter((r) => !r.dynamic).map((r) => r.pattern);
+
+  let routeSetVersion = 0;
+  const rescan = (): { routeSetChanged: boolean } => {
+    const next = scan();
+    const routeSetChanged =
+      next.length !== patterns.length ||
+      next.some((r, i) => r.pattern !== patterns[i]);
+    routes = next;
+    byPattern = new Map(routes.map((r) => [r.pattern, r] as const));
+    if (routeSetChanged) {
+      routeSetVersion++;
+      patterns.splice(0, patterns.length, ...routes.map((r) => r.pattern));
+      staticRoutes.splice(
+        0,
+        staticRoutes.length,
+        ...routes.filter((r) => !r.dynamic).map((r) => r.pattern),
+      );
+    }
+    return { routeSetChanged };
+  };
 
   // Without staticPaths, only fully-static routes prerender; dynamic (`$`)
   // routes resolve per-request. With staticPaths, each dynamic route's concrete
@@ -155,11 +223,14 @@ export function fileRouter(
     Page: (url) => matched(url).page,
     props: (url) => matched(url).props,
     build: { pages },
-    routes,
+    get routes() {
+      return routes;
+    },
     routePatterns: patterns,
     stripHtmlSuffix: opts.stripHtmlSuffix,
     getParams: (url) => matchRoutes(patterns, forMatch(url))?.params ?? {},
     layouts: (url) => matched(url).layouts,
+    routeTree: { isRouteFile, rescan, routeSetVersion: () => routeSetVersion },
   };
 }
 
@@ -211,11 +282,31 @@ export function resolveRoutesOption(
   // A pre-built router table has a `Page` resolver; a declarative config
   // doesn't (so `dir` can be omitted to mean "scan moduleBase itself").
   if ("Page" in routes) return routes;
-  return fileRouter(join(opts.moduleBase, routes.dir ?? ""), {
-    patterns: opts.patterns,
-    staticPaths: routes.staticPaths,
-    root: opts.projectRoot,
-    rscOutputPath: opts.rscOutputPath,
-    stripHtmlSuffix: opts.stripHtmlSuffix,
-  });
+  // Each plugin of one vitePluginReactServer(...) call resolves the options
+  // itself. Share one table per `routes` object (and inputs), so a dev-server
+  // rescan reaches every plugin holding it, the way a pre-built table does.
+  const key = JSON.stringify([
+    opts.moduleBase,
+    routes.dir,
+    opts.projectRoot,
+    opts.rscOutputPath,
+    opts.stripHtmlSuffix,
+    Object.entries(opts.patterns ?? {}).map(([k, v]) => [k, String(v)]),
+  ]);
+  let tables = sharedTables.get(routes);
+  if (!tables) sharedTables.set(routes, (tables = new Map()));
+  let table = tables.get(key);
+  if (!table) {
+    table = fileRouter(join(opts.moduleBase, routes.dir ?? ""), {
+      patterns: opts.patterns,
+      staticPaths: routes.staticPaths,
+      root: opts.projectRoot,
+      rscOutputPath: opts.rscOutputPath,
+      stripHtmlSuffix: opts.stripHtmlSuffix,
+    });
+    tables.set(key, table);
+  }
+  return table;
 }
+
+const sharedTables = new WeakMap<FileRoutesConfig, Map<string, FileRouterConfig>>();

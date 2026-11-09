@@ -46,6 +46,17 @@ two pages collapsing onto one URL is a scan-time error, not a silent override.
 conventional barrel filename, and a re-export barrel inside the routes tree must
 never become a route.
 
+The tree is scanned when the config resolves, and the dev server follows it
+while it runs. Adding or removing a server route file (`head.ts`, `props.ts`,
+a server `route.tsx`, `loading.tsx`) under an existing route rescans in place:
+the open page refetches and updates without a reload, so client state survives.
+A `"use client"` route file (an `error.tsx`, say) rescans the same way, but the
+module itself follows Vite's normal client HMR: without a Fast Refresh plugin
+that is a full reload, as when editing any client component. Adding or removing
+a page (a route appearing or disappearing), or the whole routes directory,
+restarts the dev server, because the route list is part of the resolved config.
+Editing any of these files reloads through HMR as usual.
+
 ```
 src/routes/
 ├── route.tsx              layout for every page

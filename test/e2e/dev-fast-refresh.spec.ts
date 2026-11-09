@@ -209,5 +209,5 @@ function defineSuite(mode: Mode, port: number) {
 
 // Two suites in one file run serially in a single worker, so they don't race
 // on the shared fixture files or fight for a port.
-defineSuite("rsc", 33700);
-defineSuite("ssr", 33701);
+defineSuite("rsc", 31700);
+defineSuite("ssr", 31701);
