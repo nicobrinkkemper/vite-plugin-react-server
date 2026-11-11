@@ -38,7 +38,8 @@ export type Router<T> = {
   markShown: (url: string) => void;
   prefetch: (to: ToPath) => void;
   /** The document href for an app-relative path (the base composed in) —
-   *  what <Link> renders so open-in-new-tab works under a subpath deploy. */
+   *  what <Link> renders so open-in-new-tab works under a subpath deploy.
+   *  An external destination is returned unchanged. */
   toHref: (to: ToPath) => string;
   /** The (cached) flight for a url; reuses a warmed/in-flight fetch. */
   flight: (url: string) => Promise<T>;
@@ -49,6 +50,11 @@ export type Router<T> = {
   /** Drop a cached flight (one url, or all) so the next `flight()` refetches. */
   invalidate: (url?: string) => void;
 };
+
+// Anything with a scheme (http:, mailto:, tel:) or protocol-relative // is
+// external: not a route, so the router neither bases nor intercepts it.
+export const isExternal = (to: string): boolean =>
+  /^[a-z][a-z0-9+.-]*:/i.test(to) || to.startsWith("//");
 
 const normalizeBase = (base?: string): string => {
   if (!base || base === "/") return "/";
@@ -126,7 +132,7 @@ export function createRouter<T>(opts: CreateRouterOptions<T>): Router<T> {
       cache.prefetch(to, { fetcher: opts.fetchFlight, ttlMs: ttlFor(to) });
     },
     flight,
-    toHref: (to) => withBase(to),
+    toHref: (to) => (isExternal(to) ? to : withBase(to)),
     prime: (url, value) => cache.prime(url, value),
     invalidate: (url) => cache.invalidate(url),
   };

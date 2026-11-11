@@ -118,3 +118,18 @@ describe("createRouter", () => {
     expect(r.getState().shownUrl).toBe("/b");
   });
 });
+
+describe("createRouter toHref under a base", () => {
+  const router = createRouter({ fetchFlight: async (u: string) => u, base: "/app/" });
+
+  it("composes the base into an app-relative path", () => {
+    expect(router.toHref("/about/")).toBe("/app/about/");
+    expect(router.toHref("/")).toBe("/app/");
+  });
+
+  it("returns an external destination unchanged", () => {
+    expect(router.toHref("https://example.com/docs")).toBe("https://example.com/docs");
+    expect(router.toHref("mailto:hello@example.com")).toBe("mailto:hello@example.com");
+    expect(router.toHref("//cdn.example.com/file.js")).toBe("//cdn.example.com/file.js");
+  });
+});
