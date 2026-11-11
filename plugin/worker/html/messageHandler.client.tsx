@@ -64,39 +64,33 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
       let htmlRenderStarted = false;
       let isMainThreadReady = true; // Flag to indicate if the main thread is ready for more data
       let pendingHtmlChunks: any[] = []; // Buffer for HTML chunks when main thread is not ready
-      let pendingEndMessage = false; // Track if we have a pending END message
-      let chunksSentCount = 0; // Track number of chunks sent to main thread
-      let chunksReceivedCount = 0; // Track number of chunks confirmed received by main thread
-      
+      // React finished while HTML was still held back: the end-of-data marker
+      // waits until that HTML has been sent.
+      let pendingEnd = false;
+
+      // The main thread ends its response and removes its listeners on null,
+      // so nothing may follow it on the data port.
+      const sendEnd = () => {
+        pendingEnd = false;
+        if (verbose) {
+          logger.info(`[html-worker] Sending end of data and END for route: ${id}`);
+        }
+        dataPort.postMessage(null);
+        controlPort.postMessage({ type: "END", id });
+      };
+
       // Function to process pending HTML chunks when main thread becomes ready
       const processPendingHtmlChunks = () => {
         if (verbose && pendingHtmlChunks.length > 0) {
           logger.info(`[html-worker] Processing ${pendingHtmlChunks.length} pending HTML chunks for route: ${id}`);
         }
-        
+
         while (pendingHtmlChunks.length > 0 && isMainThreadReady) {
-          const chunk = pendingHtmlChunks.shift()!;
-          dataPort.postMessage(chunk);
-          chunksSentCount++;
-          if (verbose) {
-            logger.info(`[html-worker] Processed pending HTML chunk ${chunksSentCount} for route: ${id}`);
-          }
+          dataPort.postMessage(pendingHtmlChunks.shift()!);
         }
-        
-        // If all chunks are processed and we have a pending END message, check if we can send it
-        if (pendingHtmlChunks.length === 0 && pendingEndMessage && isMainThreadReady) {
-          // Only send END if all sent chunks have been confirmed received
-          if (chunksSentCount === chunksReceivedCount) {
-            if (verbose) {
-              logger.info(`[html-worker] Sending pending END message for route: ${id} (all ${chunksSentCount} chunks confirmed received)`);
-            }
-            pendingEndMessage = false;
-            controlPort.postMessage({ type: "END", id });
-          } else {
-            if (verbose) {
-              logger.info(`[html-worker] Waiting to send END message for route: ${id} (${chunksReceivedCount}/${chunksSentCount} chunks confirmed received)`);
-            }
-          }
+
+        if (pendingHtmlChunks.length === 0 && pendingEnd) {
+          sendEnd();
         }
       };
 
@@ -158,19 +152,17 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
               });
             },
             onEnd: (id) => {
-              // Follow the same pattern as RSC worker: send null to data port, then END to control port
+              // Same pattern as the RSC worker: null on the data port, then
+              // END on the control port. HTML still held back by a PAUSE goes
+              // first; RESUME sends it and then the end.
               if (verbose) {
-                logger.info(`[html-worker] React stream ended for route: ${id}, signaling end of data stream`);
+                logger.info(`[html-worker] React stream ended for route: ${id}`);
               }
-              
-              // Signal end of data stream via data port (same as RSC worker)
-              dataPort.postMessage(null);
-              
-              // Send END control message
-              if (verbose) {
-                logger.info(`[html-worker] Sending END control message for route: ${id}`);
+              if (pendingHtmlChunks.length > 0) {
+                pendingEnd = true;
+              } else {
+                sendEnd();
               }
-              controlPort.postMessage({ type: "END", id });
             },
             onShellError: (id, error) => {
               controlPort.postMessage({
@@ -184,10 +176,6 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
               // But only if the main thread is ready to receive it
               if (isMainThreadReady) {
                 dataPort.postMessage(data);
-                chunksSentCount++;
-                if (verbose) {
-                  logger.info(`[html-worker] Sent HTML chunk ${chunksSentCount} for route: ${id}`);
-                }
               } else {
                 // Main thread is backpressured, buffer this data
                 pendingHtmlChunks.push(data);
@@ -231,9 +219,8 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
             break;
           case 'RESUME':
             // Main thread is ready to receive more HTML data
-            chunksReceivedCount++;
             if (verbose) {
-              logger.info(`[html-worker] Main thread ready, resuming HTML output for route: ${id} (chunks received: ${chunksReceivedCount})`);
+              logger.info(`[html-worker] Main thread ready, resuming HTML output for route: ${id}`);
             }
             isMainThreadReady = true;
             processPendingHtmlChunks();
