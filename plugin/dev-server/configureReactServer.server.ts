@@ -15,6 +15,7 @@ import { handleError } from "../error/handleError.js";
 import { cleanupWorker } from "../helpers/workerCleanup.js";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
 import { isNotFound, isRedirect } from "../router/loaderSignals.js";
+import { flightRedirectLocation } from "../utils/outcomeHeader.js";
 import { RSC_OUTPUT_PATH } from "../config/routeExportNames.js";
 
 export const configureReactServer: ConfigureReactServerFn =
@@ -457,11 +458,10 @@ export const configureReactServer: ConfigureReactServerFn =
             // decodable payload (the client router fixes the address bar from
             // `response.redirected`); a notFound is a plain 404.
             if (isRedirect(propsResult.error)) {
-              const to = propsResult.error.to;
               res.statusCode = propsResult.error.status;
               res.setHeader(
                 "location",
-                (to === "/" ? "" : to.replace(/\/$/, "")) + "/index.rsc"
+                flightRedirectLocation(propsResult.error.to)
               );
               res.end();
               return;

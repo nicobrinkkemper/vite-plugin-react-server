@@ -1,6 +1,7 @@
 import type { EdgeFetchHandler } from "../stream/createEdgeHandler.types.js";
 import { isUnknownRoute } from "../stream/unknownRoute.js";
 import { isNotFound, isRedirect } from "../router/loaderSignals.js";
+import { flightRedirectLocation } from "../utils/outcomeHeader.js";
 import { matchRoutes } from "../router/matchRoute.js";
 import type {
   CreateEdgeRequestHandlerOptions,
@@ -178,13 +179,11 @@ export function createEdgeRenderHook(
         // so the browser's transparent follow yields a decodable payload and
         // the client router fixes the address bar from `response.redirected`.
         if (isRedirect(error)) {
-          const flightTarget =
-            (error.to === "/" ? "" : error.to.replace(/\/$/, "")) +
-            "/" +
-            rscOutputPath;
           return new Response(null, {
             status: error.status,
-            headers: { location: flightTarget },
+            headers: {
+              location: flightRedirectLocation(error.to, rscOutputPath),
+            },
           });
         }
         if (isNotFound(error)) return null;

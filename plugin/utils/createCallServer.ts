@@ -10,7 +10,11 @@
 // follows the same flavor for symmetry with the server's decodeReply.
 
 import { loadBrowserFlightClient } from "./flightClient.browser.js";
-import { OUTCOME, OUTCOME_HEADER } from "./outcomeHeader.js";
+import {
+  OUTCOME,
+  OUTCOME_HEADER,
+  routeFromFlightUrl,
+} from "./outcomeHeader.js";
 import { NOT_FOUND_FIELD } from "../router/loaderSignals.js";
 
 /**
@@ -35,14 +39,6 @@ export type CallServerHooks = {
    * a refetch, and an effect that calls one would otherwise loop on it.
    */
   onRefresh?: () => void;
-};
-
-const routeFromFlightUrl = (url: string): string => {
-  let route = new URL(url).pathname;
-  if (route.endsWith("/index.rsc")) {
-    route = route.slice(0, -"/index.rsc".length) || "/";
-  }
-  return route;
 };
 
 // What a static host answers an action POST with: an error status or a page,
