@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { detectClientModule } from "react-server-loader/directives";
-import type { AutoDiscoveredFiles } from "../types.js";
+import type { ServerResponse } from "node:http";
+import type { AutoDiscoveredFiles, ResolvedUserOptions } from "../types.js";
 import type { RouteTree } from "../router/fileRouter.js";
+import { matchRoutes, normalizePathForMatch } from "../router/matchRoute.js";
+import { OUTCOME, OUTCOME_HEADER } from "../utils/outcomeHeader.js";
+import { routeToURL } from "../utils/routeToURL.js";
 
 /**
  * An empty AutoDiscoveredFiles. Both dev-server plugins (server + client) hand
@@ -27,6 +31,47 @@ export function emptyAutoDiscoveredFiles(): AutoDiscoveredFiles {
     // staticManifest removed from AutoDiscoveredFiles
     serverActions: {},
   };
+}
+
+const NOT_FOUND_ROUTE = "/404";
+
+/**
+ * A dev flight request for a url the scanned route tree has no route for is
+ * answered the way a host answers a path the static build never wrote: with
+ * a 404. When the app has a /404 route the request is pointed at it, so the
+ * caller renders that route's flight as the body and the client router can
+ * show it. Without one the response is a plain "Not Found" and the return
+ * value is false: the request is answered. An app without a scanned route
+ * tree leaves every url to its Page resolver.
+ */
+export function routeUnmatchedDevRequest(
+  info: { route: string; url: string },
+  res: ServerResponse,
+  userOptions: Pick<
+    ResolvedUserOptions,
+    "routeTree" | "routePatterns" | "stripHtmlSuffix" | "build"
+  > & { moduleBaseURL: string }
+): boolean {
+  const { routeTree, routePatterns = [], build } = userOptions;
+  const matches = (route: string) =>
+    matchRoutes(
+      routePatterns,
+      normalizePathForMatch(route, build.rscOutputPath, userOptions.stripHtmlSuffix)
+    ) !== null;
+  if (!routeTree || matches(info.route)) return true;
+  res.statusCode = 404;
+  if (!matches(NOT_FOUND_ROUTE)) {
+    res.end("Not Found");
+    return false;
+  }
+  res.setHeader(OUTCOME_HEADER, OUTCOME.notFound);
+  info.route = NOT_FOUND_ROUTE;
+  info.url = routeToURL(
+    NOT_FOUND_ROUTE,
+    userOptions.moduleBaseURL,
+    build.rscOutputPath
+  );
+  return true;
 }
 
 /**

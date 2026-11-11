@@ -15,7 +15,9 @@ import { isReactServerCondition } from "../config/getCondition.js";
 import { setupGlobalErrorHandler, cleanupGlobalErrorHandler } from "../error/setupGlobalErrorHandler.js";
 import { pipeToResponse } from "../helpers/pipeToResponse.js";
 import { isNotFound, isRedirect } from "../router/loaderSignals.js";
+import { flightRedirectLocation } from "../utils/outcomeHeader.js";
 import { createDevShellHeadProvider } from "./devShellHeadProvider.js";
+import { routeUnmatchedDevRequest } from "./devPluginShared.js";
 
 /**
  * Configures the worker request handler.
@@ -85,6 +87,13 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
       if (!req.url) return next();
 
       const info = requestInfo(req, handlerOptions, "");
+      if (
+        info.isRscRequest &&
+        !info.isServerActionRequest &&
+        !routeUnmatchedDevRequest(info, res, handlerOptions)
+      ) {
+        return;
+      }
       const handlerOptionsWithUrl = {
         ...handlerOptions,
         url: info.url,
@@ -352,11 +361,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
               if (res.headersSent) return;
               if (isRedirect(error)) {
                 res.statusCode = error.status;
-                res.setHeader(
-                  "location",
-                  (error.to === "/" ? "" : error.to.replace(/\/$/, "")) +
-                    "/index.rsc"
-                );
+                res.setHeader("location", flightRedirectLocation(error.to));
                 res.end();
               } else if (isNotFound(error)) {
                 res.statusCode = 404;
@@ -395,11 +400,7 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
         // and the client router fixes the address bar.
         if (!res.headersSent && isRedirect(error)) {
           res.statusCode = error.status;
-          res.setHeader(
-            "location",
-            (error.to === "/" ? "" : error.to.replace(/\/$/, "")) +
-              "/index.rsc"
-          );
+          res.setHeader("location", flightRedirectLocation(error.to));
           res.end();
           return;
         }

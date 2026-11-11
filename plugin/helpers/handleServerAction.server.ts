@@ -30,7 +30,7 @@ import {
 import {
   OUTCOME,
   OUTCOME_HEADER,
-  actionRedirectLocation,
+  flightRedirectLocation,
 } from "../utils/outcomeHeader.js";
 import { createSealedServerReferenceGate } from "../references/createSealedServerReferenceGate.server.js";
 import type { ReferenceGate } from "react-server-loader/references";
@@ -261,7 +261,7 @@ function actionSignalOutcome(
     return {
       status: 303,
       headers: {
-        location: actionRedirectLocation(error.to),
+        location: flightRedirectLocation(error.to),
         [OUTCOME_HEADER]: OUTCOME.redirect,
       },
     };

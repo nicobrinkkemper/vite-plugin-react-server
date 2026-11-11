@@ -14,7 +14,7 @@ import { isNotFound, isRedirect } from "../router/loaderSignals.js";
 import {
   OUTCOME,
   OUTCOME_HEADER,
-  actionRedirectLocation,
+  flightRedirectLocation,
 } from "../utils/outcomeHeader.js";
 
 // Use shared helper instead of duplicating logic
@@ -74,7 +74,7 @@ export function writeServerActionOutcome(
     if (isRedirect(err)) {
       res.statusCode = 303;
       res.removeHeader("Content-Type");
-      res.setHeader("location", actionRedirectLocation(err.to ?? "/"));
+      res.setHeader("location", flightRedirectLocation(err.to ?? "/"));
       res.setHeader(OUTCOME_HEADER, OUTCOME.redirect);
       return;
     }

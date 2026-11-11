@@ -123,6 +123,14 @@ describe("server-action terminal outcomes (Web handler)", () => {
     expect(res.headers.get("location")).toBe("/index.rsc");
   });
 
+  it("redirect() keeps the target's query string behind the flight file", async () => {
+    const res = await handleServerActionRequest(
+      await webRequestFor(),
+      options({ run: () => redirect("/search?q=hello") })
+    );
+    expect(res.headers.get("location")).toBe("/search/index.rsc?q=hello");
+  });
+
   it("notFound() answers the bodyless 404 marker", async () => {
     const res = await handleServerActionRequest(
       await webRequestFor(),

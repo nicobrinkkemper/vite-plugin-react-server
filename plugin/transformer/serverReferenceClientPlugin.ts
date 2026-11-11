@@ -5,6 +5,10 @@ import { resolveOptions } from "../config/resolveOptions.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
 import { analyzeModule } from "react-server-loader/directives";
 import type { VitePluginFn } from "../types.js";
+import {
+  serverReferenceProxyModule,
+  serverReferenceSsrStubModule,
+} from "./serverReferenceModule.js";
 
 // Virtual id prefix for the client-side server-reference proxy. The real
 // `.server` module path is encoded after the prefix.
@@ -122,31 +126,9 @@ export const serverReferenceClientPlugin: VitePluginFn = (userOptions) => {
         const normalizedPath = normalizer ? normalizer(realPath)[1] : realPath;
         const hostedId = moduleID ? moduleID(normalizedPath, src, false) : normalizedPath;
 
-        if (this.environment?.name === "client") {
-          // esm createServerReference is transport-safe: the callable only
-          // delegates to callServer, where the transport chooser lives (see
-          // createTransformerPlugin's proxy emission for the full rationale).
-          return [
-            `import { createServerReference } from "react-server-dom-esm/client.browser";`,
-            `import { createCallServer } from "vite-plugin-react-server/utils";`,
-            `const callServer = createCallServer(${JSON.stringify(viteBase)});`,
-            ...exportNames.map(
-              (n) =>
-                `export const ${n} = createServerReference(${JSON.stringify(
-                  `${hostedId}#${n}`
-                )}, callServer);`
-            ),
-          ].join("\n");
-        }
-        // SSR: render-safe stub (never called during render; no browser transport).
-        return exportNames
-          .map(
-            (n) =>
-              `export const ${n} = () => { throw new Error(${JSON.stringify(
-                `Server function "${n}" cannot run during SSR; it executes in the browser via a server reference.`
-              )}); };`
-          )
-          .join("\n");
+        return this.environment?.name === "client"
+          ? serverReferenceProxyModule(hostedId, exportNames, viteBase)
+          : serverReferenceSsrStubModule(exportNames);
       },
     },
   };

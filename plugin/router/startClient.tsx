@@ -10,6 +10,7 @@ import {
 import { basePathOf, stripBasePath } from "../utils/basePath.js";
 import { createRouter, type Router } from "./createRouter.js";
 import { createActionOutcomeHooks } from "./actionOutcomeHooks.js";
+import { routeFromFlightUrl } from "../utils/outcomeHeader.js";
 import { RouterProvider, useLocation } from "./router-react.js";
 import { applyRouteHead } from "./applyRouteHead.js";
 import { env } from "#env";
@@ -280,10 +281,7 @@ export function startClient(opts: StartClientOptions = {}): Router<ReactNode> {
   });
   followRedirect = (response) => {
     if (!response.redirected || !response.ok) return;
-    let finalRoute = stripBase(new URL(response.url).pathname);
-    if (finalRoute.endsWith("/index.rsc")) {
-      finalRoute = finalRoute.slice(0, -"/index.rsc".length) || "/";
-    }
+    const finalRoute = routeFromFlightUrl(response.url, stripBase);
     if (finalRoute !== router.getState().url) {
       router.navigate(finalRoute, { replace: true });
     }

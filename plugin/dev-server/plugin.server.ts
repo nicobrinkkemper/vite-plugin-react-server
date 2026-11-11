@@ -6,6 +6,7 @@ import type { Plugin, ViteDevServer } from "vite";
 import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile, watchRouteTree, isRouteTreeAddOrRemove } from "./devPluginShared.js";
 import { getDevShellHeadProvider } from "./devShellHeadProvider.js";
 import { mergeDevShellHead } from "./devShellHead.js";
+import { NAMED_REACT_IMPORT_FILTER, rewriteReactNamedImports } from "./rewriteReactNamedImports.js";
 
 /**
  * Dev server plugin for server environment.
@@ -190,23 +191,14 @@ applyToEnvironment(partialEnvironment: any) {
     transform: {
       filter: {
         id: { include: /\.[jt]sx?$/, exclude: /node_modules/ },
-        code: /import\s*\{([^}]+)\}\s*from\s*["']react["']/,
+        code: NAMED_REACT_IMPORT_FILTER,
       },
       handler(code: string, id: string) {
         if (id.includes('node_modules')) return;
         if (!id.match(/\.[jt]sx?$/)) return;
+        if (!NAMED_REACT_IMPORT_FILTER.test(code)) return;
 
-        const namedImportRe = /import\s*\{([^}]+)\}\s*from\s*["']react["']\s*;?/g;
-        if (!namedImportRe.test(code)) return;
-
-        namedImportRe.lastIndex = 0;
-        let counter = 0;
-        const result = code.replace(namedImportRe, (_match, imports) => {
-          const alias = `__react_cjs_${counter++}`;
-          return `import ${alias} from "react"; const {${imports}} = ${alias};`;
-        });
-
-        return { code: result, map: null };
+        return { code: rewriteReactNamedImports(code), map: null };
       },
     },
   };

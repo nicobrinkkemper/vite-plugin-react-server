@@ -628,10 +628,20 @@ export async function addItem(title: string): Promise<{ ok: boolean; tag: string
   );
 
   await writeFile(
+    resolve(testDir, "src/actions/saveItem.ts"),
+    `"use server";
+export default async function saveItem(title: string): Promise<{ ok: boolean; tag: string }> {
+  return { ok: !!title, tag: "server-only-body-marker" };
+}
+`
+  );
+
+  await writeFile(
     resolve(testDir, "src/components/AddButton.tsx"),
     `"use client";
 import React from "react";
 import { addItem } from "../actions/todoActions.js";
+import saveItem from "../actions/saveItem.js";
 
 export function AddButton() {
   const [ok, setOk] = React.useState(false);
@@ -640,7 +650,8 @@ export function AddButton() {
       data-testid="add"
       onClick={async () => {
         const res = await addItem("hello");
-        setOk(res.ok);
+        const saved = await saveItem("hello");
+        setOk(res.ok && saved.ok);
       }}
     >
       {ok ? "added" : "add"}
