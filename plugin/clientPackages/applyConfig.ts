@@ -19,8 +19,11 @@ export const mergeClientPackagesNoExternal = (
   if (existing == null) {
     return [...clientPackages];
   }
-  // existing is a single string | RegExp | true
-  return [existing as string | RegExp, ...clientPackages];
+  // `true` already covers every package and is not valid inside an array.
+  if (existing === true) {
+    return true;
+  }
+  return [existing, ...clientPackages];
 };
 
 /**

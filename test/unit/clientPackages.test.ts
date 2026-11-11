@@ -84,6 +84,10 @@ describe("clientPackages/mergeClientPackagesNoExternal", () => {
     const re = /^a$/;
     expect(mergeClientPackagesNoExternal(["b"], re)).toEqual([re, "b"]);
   });
+
+  it("keeps `true` as is: it already covers every package, and `[true, …]` is not a valid noExternal value", () => {
+    expect(mergeClientPackagesNoExternal(["a", "b"], true)).toBe(true);
+  });
 });
 
 describe("clientPackages/mergeClientPackagesOptimizeDepsExclude", () => {
