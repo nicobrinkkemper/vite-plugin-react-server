@@ -277,6 +277,11 @@ export function Nav() {
 }
 ```
 
+`to` is always the route, never the document path. On a site served under a
+subpath, write `to="/greet/ada"` and the rendered `href`, the history entry
+and the flight fetch all get the base, in the prerendered document as well as
+after hydration. A `to` that already contains the base gets it a second time.
+
 Navigation is resolve-then-set: the old view stays on screen while the target
 route's flight loads. During that window the clicked `Link` announces the
 transition — it carries `data-pending` and `aria-busy`, so pending UI is a CSS
