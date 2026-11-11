@@ -273,6 +273,14 @@ describe.skipIf(!browserAvailable)(
       expect(html).toContain(`src="${BASE}`);
     });
 
+    it("prerendered Link hrefs carry the base, like the hydrated ones", () => {
+      // No router exists during prerender, and hydration does not rewrite an
+      // attribute, so what ships in the document is what a new tab opens.
+      expect(html).toContain(`href="${BASE}about/"`);
+      expect(html).toContain(`href="${BASE}app/intro/"`);
+      expect(html).not.toContain('href="/about/"');
+    });
+
     it("hydrates, navigates with ONE based .rsc GET, and shows the 404 flight on a miss", async () => {
       const browser = await chromium.launch();
       try {

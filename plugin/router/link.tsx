@@ -7,6 +7,8 @@ import type {
 } from "react";
 import type { ToPath } from "./register.js";
 import { isExternal } from "./createRouter.js";
+import { basePathOf } from "../utils/basePath.js";
+import { env } from "#env";
 import { useOptionalNavigation, useOptionalRouter } from "./router-react.js";
 
 // Client-side <Link> over the nav primitive: intercepts plain internal clicks
@@ -27,6 +29,14 @@ export type LinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
 
 const INTENT_MS = 60;
 
+// Outside a router there is no router.toHref. A static prerender renders Link
+// that way, and hydration keeps the prerendered attribute, so the base has to
+// be composed here or the anchor stays app-relative for good.
+const envHref = (to: string): string => {
+  if (isExternal(to)) return to;
+  const base = basePathOf(env.BASE_URL);
+  return base === "/" ? to : base.slice(0, -1) + to;
+};
 const stripSlash = (p: string) => p.replace(/\/+$/, "") || "/";
 
 const isModified = (e: ReactMouseEvent) =>
@@ -72,7 +82,7 @@ export function Link({
 
   return (
     <a
-      href={router ? router.toHref(to) : to}
+      href={router ? router.toHref(to) : envHref(to)}
       target={target}
       data-pending={pending || undefined}
       aria-busy={pending || undefined}

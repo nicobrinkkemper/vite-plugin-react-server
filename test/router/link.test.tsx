@@ -54,6 +54,29 @@ describe("Link under a deploy base", () => {
   ])("leaves the external destination %s unchanged", (to) => {
     expect(hrefOf(to)).toContain(`href="${to}"`);
   });
+
+  // A static prerender renders Link with no provider. Hydration keeps the
+  // prerendered attribute, so the base has to be in that markup already.
+  describe("outside a RouterProvider", () => {
+    const bareHrefOf = (to: string) => {
+      vi.stubEnv("VITE_BASE_URL", "/app/");
+      try {
+        return renderToStaticMarkup(<Link to={to}>x</Link>);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    };
+
+    it("composes the base from the environment", () => {
+      expect(bareHrefOf("/about/")).toContain('href="/app/about/"');
+    });
+
+    it("leaves an external destination unchanged", () => {
+      expect(bareHrefOf("https://example.com/docs")).toContain(
+        'href="https://example.com/docs"',
+      );
+    });
+  });
 });
 
 describe("Link", () => {
