@@ -5,6 +5,7 @@ import { createSerializableHandlerOptions } from "../helpers/createSerializableH
 import { toError } from "../error/toError.js";
 import { serializeError } from "../error/serializeError.js";
 import { createMessageChannels } from "./createMessageChannels.js";
+import { createDrainQueue } from "./createDrainQueue.js";
 
 /**
  * A null React hook dispatcher during worker SSR (`Cannot read properties of null
@@ -74,22 +75,13 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   // same event.
   htmlStream.on("error", () => {});
 
-  // RSC input goes to the worker through ONE queue and ONE drain path. The
-  // input is "ended" once the RSC stream has ended and "finished" once the
-  // end-of-input marker (null) went to the worker. Input keeps arriving while
-  // the HTML output is backpressured, so the end of the input is not the end
-  // of delivery: drainRscQueue is the only place that sends the marker, and
-  // only with the input ended and the queue empty.
-  let isHtmlStreamReady = true; // false while the HTML output is backpressured
-  const rscQueue: unknown[] = [];
-  let inputState: "open" | "ended" | "finished" = "open";
-
-  const drainRscQueue = () => {
-    while (isHtmlStreamReady && rscQueue.length > 0) {
-      dataPort1.postMessage(rscQueue.shift());
-    }
-    if (inputState === "ended" && rscQueue.length === 0) {
-      inputState = "finished";
+  // RSC input: held while the HTML output is backpressured. Input keeps
+  // arriving during that pause, so the end of the input is not the end of
+  // delivery: the end-of-input marker (null) goes to the worker after the
+  // last held chunk.
+  const rscQueue = createDrainQueue<unknown>(
+    (chunk) => dataPort1.postMessage(chunk),
+    () => {
       if (verbose) {
         logger.info(
           `[createHtmlStream.server:${route}] RSC input fully delivered to the worker`
@@ -97,7 +89,7 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
       }
       dataPort1.postMessage(null);
     }
-  };
+  );
 
   // Data port - receives HTML data from worker
   const dataMessageHandler = (event: any) => {
@@ -149,7 +141,7 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
             `[createHtmlStream.server:${route}] HTML stream backpressured, pausing worker`
           );
         }
-        isHtmlStreamReady = false;
+        rscQueue.pause();
         
         // Tell the worker to pause sending more data
         controlPort1.postMessage({ type: "PAUSE", id: id });
@@ -161,9 +153,8 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
               `[createHtmlStream.server:${route}] HTML stream drained, resuming worker`
             );
           }
-          isHtmlStreamReady = true;
           // RSC chunks held during the pause go first
-          drainRscQueue();
+          rscQueue.resume();
           // Tell worker it can resume sending data
           controlPort1.postMessage({ type: "RESUME", id: id });
         });
@@ -256,15 +247,8 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
     }
 
     // Pipe the RSC stream data directly to the worker via dataPort
-    rscStream.on("data", (chunk) => {
-      rscQueue.push(chunk);
-      drainRscQueue();
-    });
-
-    rscStream.on("end", () => {
-      inputState = "ended";
-      drainRscQueue();
-    });
+    rscStream.on("data", (chunk) => rscQueue.push(chunk));
+    rscStream.on("end", () => rscQueue.end());
 
     rscStream.on("error", (error) => {
       const serializedError = serializeError(error);

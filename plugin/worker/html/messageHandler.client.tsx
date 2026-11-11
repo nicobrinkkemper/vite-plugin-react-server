@@ -7,6 +7,7 @@ import { serializeError } from "../../error/serializeError.js";
 import { serializeErrorInfo } from "../../error/serializeErrorInfo.js";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { activeStreams, moduleIds } from "./state.client.js";
+import { createDrainQueue } from "../../stream/createDrainQueue.js";
 
 const verbose = Boolean(workerData?.userOptions?.verbose);
 const logger = createLogger(workerData.resolvedConfig?.logLevel ?? "info");
@@ -62,31 +63,21 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
       const rscStream = new PassThrough();
       let streamStarted = false;
       let htmlRenderStarted = false;
-      let isMainThreadReady = true; // Flag to indicate if the main thread is ready for more data
-      // HTML output goes through ONE queue and ONE drain path. The render
-      // is "ended" once React has produced its last chunk and "finished" once
-      // the end-of-data marker went out. The main thread ends its response
-      // and removes its listeners on that marker, so drainHtml is the only
-      // place that sends it, and only with the render ended and the queue
-      // empty.
-      const htmlQueue: unknown[] = [];
-      let renderState: "rendering" | "ended" | "finished" = "rendering";
-
-      const drainHtml = () => {
-        while (isMainThreadReady && htmlQueue.length > 0) {
-          dataPort.postMessage(htmlQueue.shift());
-        }
-        if (renderState === "ended" && htmlQueue.length === 0) {
-          renderState = "finished";
+      // HTML output: held while the main thread is backpressured (PAUSE /
+      // RESUME). The main thread ends its response and removes its listeners
+      // on the end-of-data marker, so it goes out after the last held chunk.
+      // Same pattern as the RSC worker: null on the data port, then END on
+      // the control port.
+      const htmlQueue = createDrainQueue<unknown>(
+        (chunk) => dataPort.postMessage(chunk),
+        () => {
           if (verbose) {
             logger.info(`[html-worker] All HTML sent, signaling end for route: ${id}`);
           }
-          // Same pattern as the RSC worker: null on the data port, then END
-          // on the control port.
           dataPort.postMessage(null);
           controlPort.postMessage({ type: "END", id });
         }
-      };
+      );
 
       // Set up the HTML render process once when we receive the first chunk
       const startHtmlRender = () => {
@@ -145,10 +136,7 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
                 errorInfo: serializeErrorInfo(errorInfo),
               });
             },
-            onEnd: () => {
-              renderState = "ended";
-              drainHtml();
-            },
+            onEnd: () => htmlQueue.end(),
             onShellError: (id, error) => {
               controlPort.postMessage({
                 type: "SHELL_ERROR",
@@ -156,12 +144,8 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
                 error: serializeError(error),
               });
             },
-            onData: (_id, data) => {
-              // Raw HTML, no type wrapper. Held in the queue while the main
-              // thread is backpressured.
-              htmlQueue.push(data);
-              drainHtml();
-            },
+            // Raw HTML, no type wrapper.
+            onData: (_id, data) => htmlQueue.push(data),
             onMetrics: (id, metrics) => {
               controlPort.postMessage({ type: "METRICS", id, metrics });
             },
@@ -193,15 +177,14 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
             if (verbose) {
               logger.info(`[html-worker] Main thread backpressured, pausing HTML output for route: ${id}`);
             }
-            isMainThreadReady = false;
+            htmlQueue.pause();
             break;
           case 'RESUME':
             // Main thread is ready to receive more HTML data
             if (verbose) {
               logger.info(`[html-worker] Main thread ready, resuming HTML output for route: ${id}`);
             }
-            isMainThreadReady = true;
-            drainHtml();
+            htmlQueue.resume();
             break;
           case 'ABORT':
             // Stream was aborted
