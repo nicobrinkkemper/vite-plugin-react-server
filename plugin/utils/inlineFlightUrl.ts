@@ -18,6 +18,8 @@
  * client entry imports vprs before its own body runs).
  */
 
+import { stripBasePath } from "./basePath.js";
+
 const PLACEHOLDER_ORIGIN = "http://vprs.invalid";
 
 type LocationLike = { pathname?: string; search?: string; href?: string };
@@ -77,10 +79,7 @@ export function flightRouteKey(
   }
   let path = parsed.pathname.replace(/\/{2,}/g, "/");
   path = path.replace(/\/index\.(?:html?|rsc)$/i, "/");
-  const base = basePath.endsWith("/") ? basePath : `${basePath}/`;
-  if (base !== "/" && (path === base.slice(0, -1) || path.startsWith(base))) {
-    path = path.slice(base.length - 1) || "/";
-  }
+  path = stripBasePath(path, basePath.endsWith("/") ? basePath : `${basePath}/`);
   if (!path.startsWith("/")) path = `/${path}`;
   if (!path.endsWith("/")) path = `${path}/`;
   return { path, search: parsed.search };

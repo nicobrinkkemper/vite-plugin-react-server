@@ -51,6 +51,20 @@ const MIME: Record<string, string> = {
 async function setupFixture() {
   await mkdir(join(testDir, "src/routes/about"), { recursive: true });
   await mkdir(join(testDir, "src/routes/404"), { recursive: true });
+  // A route whose first segment equals the base segment: its document url is
+  // "/app/app/intro/".
+  await mkdir(join(testDir, "src/routes/app/intro"), { recursive: true });
+  await writeFile(
+    join(testDir, "src/routes/app/intro/page.tsx"),
+    `import * as React from "react";\n` +
+      `import { Counter } from "../../Counter.client.js";\n` +
+      `export const Page = () => (\n` +
+      `  <main>\n` +
+      `    <h1 id="heading">{"intro"}</h1>\n` +
+      `    <Counter id="intro-counter" />\n` +
+      `  </main>\n` +
+      `);\n`
+  );
   await writeFile(
     join(testDir, "src/routes/Counter.client.tsx"),
     `"use client";\n` +
@@ -94,6 +108,7 @@ async function setupFixture() {
       `    <h1 id="heading">{"home"}</h1>\n` +
       `    <Link id="to-about" to="/about/">{"go to about"}</Link>\n` +
       `    <Link id="to-void" to="/void/">{"go nowhere"}</Link>\n` +
+      `    <Link id="to-intro" to="/app/intro/">{"go to intro"}</Link>\n` +
       `    <Suspense fallback={<div id="fallback">{"loading"}</div>}>\n` +
       `      <Delayed />\n` +
       `    </Suspense>\n` +
@@ -212,7 +227,7 @@ describe.skipIf(!browserAvailable)(
           `    Page: fr.Page,\n` +
           `    props: fr.props,\n` +
           `    routePatterns: fr.routePatterns,\n` +
-          `    build: { pages: fr.build.pages, outDir: "dist" },\n` +
+          `    build: { pages: fr.build.pages, outDir: "dist", inlineFlight: true },\n` +
           `    moduleBasePath: "",\n` +
           `    moduleBaseURL: ${JSON.stringify(BASE)},\n` +
           `    projectRoot: process.cwd(),\n` +
@@ -342,6 +357,66 @@ describe.skipIf(!browserAvailable)(
           timeOrigin
         );
         expect(documentRequests.length).toBe(documentBaseline);
+        expect(pageErrors).toEqual([]);
+      } finally {
+        await browser.close();
+      }
+    });
+
+    it("a route whose first segment equals the base loads from its inline payload and by navigation", async () => {
+      const browser = await chromium.launch();
+      try {
+        const page = await browser.newPage();
+        const pageErrors: string[] = [];
+        const warnings: string[] = [];
+        const rscRequests: string[] = [];
+        page.on("pageerror", (e) => pageErrors.push(String(e)));
+        page.on("console", (m) => {
+          if (m.type() === "warning" || m.type() === "error")
+            warnings.push(m.text());
+        });
+        page.on("request", (r) => {
+          if (r.url().includes(".rsc")) rscRequests.push(r.url());
+        });
+        const clickCounts = (id: string) =>
+          page.waitForFunction(
+            (selector) => {
+              const b = document.querySelector(selector) as HTMLButtonElement;
+              if (!b) return false;
+              b.click();
+              return b.textContent !== "count:0";
+            },
+            `#${id}`,
+            { timeout: 20000, polling: 300 }
+          );
+
+        // First load: the document's own inline payload answers the first
+        // fetch, so the page hydrates with no flight request.
+        await page.goto(`http://localhost:${PORT}${BASE}app/intro/`, {
+          waitUntil: "networkidle",
+        });
+        await clickCounts("intro-counter");
+        expect(rscRequests).toEqual([]);
+        expect(warnings).toEqual([]);
+
+        // Client navigation: the flight is fetched under the base, with the
+        // route's own "app" segment kept.
+        await page.goto(`http://localhost:${PORT}${BASE}`, {
+          waitUntil: "networkidle",
+        });
+        await clickCounts("home-counter");
+        const rscBaseline = rscRequests.length;
+        await page.click("#to-intro");
+        await page.waitForFunction(
+          () => document.querySelector("#heading")?.textContent === "intro",
+          undefined,
+          { timeout: 15000, polling: 300 }
+        );
+        expect(rscRequests.slice(rscBaseline)).toEqual([
+          `http://localhost:${PORT}${BASE}app/intro/index.rsc`,
+        ]);
+        expect(new URL(page.url()).pathname).toBe(`${BASE}app/intro/`);
+        await clickCounts("intro-counter");
         expect(pageErrors).toEqual([]);
       } finally {
         await browser.close();

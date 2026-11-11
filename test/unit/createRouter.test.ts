@@ -118,3 +118,20 @@ describe("createRouter", () => {
     expect(r.getState().shownUrl).toBe("/b");
   });
 });
+
+describe("createRouter base at the document boundary", () => {
+  const make = () =>
+    createRouter({ fetchFlight: async (u: string) => u, base: "/docs/" });
+
+  it("strips the base once from a route named like the base", () => {
+    history.replaceState(null, "", "/docs/docs/intro/?q=1");
+    const router = make();
+    expect(router.getState().url).toBe("/docs/intro/?q=1");
+    expect(router.toHref("/docs/intro/")).toBe("/docs/docs/intro/");
+  });
+
+  it("reads the base without its trailing slash as the root", () => {
+    history.replaceState(null, "", "/docs");
+    expect(make().getState().url).toBe("/");
+  });
+});

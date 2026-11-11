@@ -2,6 +2,7 @@ import type React from "react";
 import { createCallServer, type CallServerHooks } from "./createCallServer.js";
 import { loadBrowserFlightClient } from "./flightClient.browser.js";
 import { env } from "#env";
+import { basePathOf } from "./basePath.js";
 import { createPageURL } from "./urls.js";
 import {
   discardStreamedFlight,
@@ -120,15 +121,6 @@ function takeInlineFlight(): Uint8Array | PromiseLike<Uint8Array | null> | null 
       { once: true }
     );
   });
-}
-
-function basePathOf(moduleBaseURL: string): string {
-  try {
-    const path = new URL(moduleBaseURL, "http://vprs.invalid").pathname;
-    return path.endsWith("/") ? path : `${path}/`;
-  } catch {
-    return "/";
-  }
 }
 
 export function createReactFetcher({

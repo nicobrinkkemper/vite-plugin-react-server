@@ -67,3 +67,15 @@ describe("inlineFlightMatches", () => {
     expect(inlineFlightMatches("/anything/", undefined)).toBe(true);
   });
 });
+
+describe("a route whose first segment equals the base", () => {
+  it("keys the document and its based fetch alike", () => {
+    expect(flightRouteKey("/docs/docs/intro/", "/docs/").path).toBe("/docs/intro/");
+    expect(
+      inlineFlightMatches("/docs/docs/intro/", "http://h/docs/docs/intro/", "/docs/")
+    ).toBe(true);
+    expect(
+      inlineFlightMatches("/docs/docs/intro/", "http://h/docs/intro/", "/docs/")
+    ).toBe(false);
+  });
+});

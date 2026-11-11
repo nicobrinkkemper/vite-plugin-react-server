@@ -7,6 +7,7 @@ import {
   hydrateOrRender,
   useRscHmr,
 } from "../utils/index.client.js";
+import { basePathOf, stripBasePath } from "../utils/basePath.js";
 import { createRouter, type Router } from "./createRouter.js";
 import { createActionOutcomeHooks } from "./actionOutcomeHooks.js";
 import { RouterProvider, useLocation } from "./router-react.js";
@@ -244,19 +245,9 @@ export function startClient(opts: StartClientOptions = {}): Router<ReactNode> {
   // The deploy base (a subpath like "/app/"), derived from moduleBaseURL's
   // path. The router keeps app-relative state and composes/strips this at
   // the document boundary; redirect follows below strip it the same way.
-  let basePath = "/";
-  if (moduleBaseURL) {
-    try {
-      basePath = new URL(moduleBaseURL, "http://placeholder.local").pathname;
-      if (!basePath.endsWith("/")) basePath += "/";
-    } catch {
-      basePath = "/";
-    }
-  }
-  const stripBasePath = (pathname: string): string =>
-    basePath !== "/" && pathname.startsWith(basePath)
-      ? pathname.slice(basePath.length - 1)
-      : pathname;
+  const basePath = moduleBaseURL ? basePathOf(moduleBaseURL) : "/";
+  const stripBase = (pathname: string): string =>
+    stripBasePath(pathname, basePath);
   // Out-of-band view delivery for action outcomes; RouteView fills the slot.
   const deliverRef: { current: ((node: ReactNode) => void) | null } = {
     current: null,
@@ -267,12 +258,13 @@ export function startClient(opts: StartClientOptions = {}): Router<ReactNode> {
   const callServerHooks = createActionOutcomeHooks<ReactNode>({
     router: () => router,
     deliver: (node) => deliverRef.current?.(node),
-    stripBasePath,
+    stripBasePath: stripBase,
   });
   const fetchFlight = (url: string): Promise<ReactNode> =>
     Promise.resolve(
       createReactFetcher({
-        url,
+        // The fetcher takes document locations; the router's are app-relative.
+        url: router.toHref(url),
         moduleBaseURL,
         publicOrigin,
         onResponse: (response) => followRedirect(response),
@@ -288,7 +280,7 @@ export function startClient(opts: StartClientOptions = {}): Router<ReactNode> {
   });
   followRedirect = (response) => {
     if (!response.redirected || !response.ok) return;
-    let finalRoute = stripBasePath(new URL(response.url).pathname);
+    let finalRoute = stripBase(new URL(response.url).pathname);
     if (finalRoute.endsWith("/index.rsc")) {
       finalRoute = finalRoute.slice(0, -"/index.rsc".length) || "/";
     }
