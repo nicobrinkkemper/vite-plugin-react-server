@@ -16,6 +16,7 @@ import { setupGlobalErrorHandler, cleanupGlobalErrorHandler } from "../error/set
 import { pipeToResponse } from "../helpers/pipeToResponse.js";
 import { isNotFound, isRedirect } from "../router/loaderSignals.js";
 import { createDevShellHeadProvider } from "./devShellHeadProvider.js";
+import { routeUnmatchedDevRequest } from "./devPluginShared.js";
 
 /**
  * Configures the worker request handler.
@@ -85,6 +86,13 @@ export const configureRequestHandler: ConfigureWorkerRequestHandlerFn =
       if (!req.url) return next();
 
       const info = requestInfo(req, handlerOptions, "");
+      if (
+        info.isRscRequest &&
+        !info.isServerActionRequest &&
+        !routeUnmatchedDevRequest(info, res, handlerOptions)
+      ) {
+        return;
+      }
       const handlerOptionsWithUrl = {
         ...handlerOptions,
         url: info.url,
