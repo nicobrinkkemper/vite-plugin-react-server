@@ -6,6 +6,7 @@ import type {
   MouseEvent as ReactMouseEvent,
 } from "react";
 import type { ToPath } from "./register.js";
+import { isExternal } from "./createRouter.js";
 import { useOptionalNavigation, useOptionalRouter } from "./router-react.js";
 
 // Client-side <Link> over the nav primitive: intercepts plain internal clicks
@@ -30,10 +31,6 @@ const stripSlash = (p: string) => p.replace(/\/+$/, "") || "/";
 
 const isModified = (e: ReactMouseEvent) =>
   e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey;
-
-// Anything with a scheme (http:, mailto:, tel:) or protocol-relative // is external.
-const isExternal = (to: string) =>
-  /^[a-z][a-z0-9+.-]*:/i.test(to) || to.startsWith("//");
 
 export function Link({
   to,

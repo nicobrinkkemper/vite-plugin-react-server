@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createRouter } from "../../plugin/router/createRouter.js";
 import { Link } from "../../plugin/router/link.js";
@@ -27,6 +28,33 @@ function withRouter(node: React.ReactNode) {
   const router = createRouter({ fetchFlight: async (u: string) => u });
   return { router, ui: <RouterProvider router={router}>{node}</RouterProvider> };
 }
+
+describe("Link under a deploy base", () => {
+  const hrefOf = (to: string) => {
+    const router = createRouter({
+      fetchFlight: async (u: string) => u,
+      base: "/app/",
+    });
+    return renderToStaticMarkup(
+      <RouterProvider router={router}>
+        <Link to={to}>x</Link>
+      </RouterProvider>,
+    );
+  };
+
+  it("composes the base into an internal href", () => {
+    expect(hrefOf("/about/")).toContain('href="/app/about/"');
+  });
+
+  it.each([
+    "https://example.com/docs",
+    "mailto:hello@example.com",
+    "tel:+3112345678",
+    "//cdn.example.com/file.js",
+  ])("leaves the external destination %s unchanged", (to) => {
+    expect(hrefOf(to)).toContain(`href="${to}"`);
+  });
+});
 
 describe("Link", () => {
   it("intercepts a plain internal click and navigates", async () => {
