@@ -50,6 +50,14 @@ describe("Client-imported 'use server' module in static build", () => {
     expect(clientContent).toContain("#addItem");
   });
 
+  it("addresses a default-exported server function as #default", () => {
+    const clientContent = buildResult
+      .clientChunks()
+      .map(([, content]) => content)
+      .join("\n");
+    expect(clientContent).toMatch(/saveItem\.ts#default\b/);
+  });
+
   it("keeps the server function body out of every client-reachable chunk", () => {
     const allClientLike = [
       ...buildResult.clientChunks(),
