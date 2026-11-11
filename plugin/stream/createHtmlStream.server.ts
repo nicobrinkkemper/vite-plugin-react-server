@@ -74,75 +74,28 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   // same event.
   htmlStream.on("error", () => {});
 
-  // Flow control state for HTML output stream backpressure handling.
-  // The end of the RSC input does not end delivery: chunks queued while the
-  // HTML output was backpressured still go to the worker once it drains. The
-  // render is complete when the worker's null end-message arrives, not when
-  // the input ends.
-  let chunkCount = 0; // Track number of chunks sent
-  let isHtmlStreamReady = true; // Track if HTML stream can accept more data
-  let pendingRscChunks: any[] = []; // Buffer for RSC chunks when HTML stream is backpressured
-  // No need to track END message state - rely on null data message for completion
+  // RSC input goes to the worker through ONE queue and ONE drain path. The
+  // input is "ended" once the RSC stream has ended and "finished" once the
+  // end-of-input marker (null) went to the worker. Input keeps arriving while
+  // the HTML output is backpressured, so the end of the input is not the end
+  // of delivery: drainRscQueue is the only place that sends the marker, and
+  // only with the input ended and the queue empty.
+  let isHtmlStreamReady = true; // false while the HTML output is backpressured
+  const rscQueue: unknown[] = [];
+  let inputState: "open" | "ended" | "finished" = "open";
 
-  // Function to process pending RSC chunks when HTML stream becomes ready
-  const processPendingRscChunks = () => {
-    if (verbose && pendingRscChunks.length > 0) {
-      logger.info(
-        `[createHtmlStream.server:${route}] Processing ${pendingRscChunks.length} pending RSC chunks`
-      );
+  const drainRscQueue = () => {
+    while (isHtmlStreamReady && rscQueue.length > 0) {
+      dataPort1.postMessage(rscQueue.shift());
     }
-
-    while (pendingRscChunks.length > 0 && isHtmlStreamReady) {
-      const chunk = pendingRscChunks.shift()!;
-      try {
-        dataPort1.postMessage(chunk);
-        chunkCount++;
-        if (verbose) {
-          logger.info(
-            `[createHtmlStream.server:${route}] Processed pending RSC chunk ${chunkCount}`
-          );
-        }
-      } catch (error) {
-        // Still backpressure, put chunk back and stop
-        pendingRscChunks.unshift(chunk);
-        if (verbose) {
-          logger.info(
-            `[createHtmlStream.server:${route}] Still backpressure, stopping processing`
-          );
-        }
-        break;
-      }
-    }
-  };
-
-  // Function to send a chunk to the worker
-  // Check if HTML stream is ready before sending RSC chunks
-  const sendChunk = (chunk: any) => {
-    if (isHtmlStreamReady) {
-      try {
-        dataPort1.postMessage(chunk);
-        chunkCount++;
-        if (verbose) {
-          logger.info(
-            `[createHtmlStream.server:${route}] Sent chunk ${chunkCount}`
-          );
-        }
-      } catch (error) {
-        // MessagePort error - this will naturally backpressure the RSC stream
-        if (verbose) {
-          logger.info(
-            `[createHtmlStream.server:${route}] MessagePort backpressure detected, RSC stream will naturally slow down`
-          );
-        }
-      }
-    } else {
-      // HTML stream is backpressured, buffer this RSC chunk
-      pendingRscChunks.push(chunk);
+    if (inputState === "ended" && rscQueue.length === 0) {
+      inputState = "finished";
       if (verbose) {
         logger.info(
-          `[createHtmlStream.server:${route}] HTML stream backpressured, buffering RSC chunk (${pendingRscChunks.length} pending)`
+          `[createHtmlStream.server:${route}] RSC input fully delivered to the worker`
         );
       }
+      dataPort1.postMessage(null);
     }
   };
 
@@ -209,8 +162,8 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
             );
           }
           isHtmlStreamReady = true;
-          // Process any pending RSC chunks first
-          processPendingRscChunks();
+          // RSC chunks held during the pause go first
+          drainRscQueue();
           // Tell worker it can resume sending data
           controlPort1.postMessage({ type: "RESUME", id: id });
         });
@@ -234,12 +187,8 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
 
     switch (message.type) {
       case "READY":
-        // Flow control: HTML worker is ready for more data
-        if (verbose) {
-          logger.info(`[createHtmlStream.server:${route}] HTML worker ready for more data`);
-        }
-        // Process any pending RSC chunks that were buffered due to backpressure
-        processPendingRscChunks();
+        // The worker acknowledges each RSC chunk; delivery is paced by the
+        // HTML output's backpressure, not by this message.
         break;
       case "END":
         // Don't end the stream yet - wait for the null data message
@@ -308,7 +257,13 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
 
     // Pipe the RSC stream data directly to the worker via dataPort
     rscStream.on("data", (chunk) => {
-      sendChunk(chunk);
+      rscQueue.push(chunk);
+      drainRscQueue();
+    });
+
+    rscStream.on("end", () => {
+      inputState = "ended";
+      drainRscQueue();
     });
 
     rscStream.on("error", (error) => {

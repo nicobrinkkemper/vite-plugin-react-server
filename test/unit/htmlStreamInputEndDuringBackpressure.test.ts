@@ -6,8 +6,9 @@ import { createHtmlStream } from "../../plugin/stream/createHtmlStream.server.js
 /**
  * Flight input keeps arriving while the HTML output is backpressured: those
  * chunks wait in a queue until the output drains. When the Flight input ENDS
- * during that pause, the queued chunks still have to reach the worker. Input
- * ended is not the same as everything delivered.
+ * during that pause, the queued chunks still have to reach the worker, and
+ * the end-of-input marker goes after them. Input ended is not the same as
+ * everything delivered.
  */
 
 const nextMessage = (port: MessagePort) =>
@@ -30,7 +31,9 @@ describe("createHtmlStream: Flight input that ends during HTML backpressure", ()
     const [dataPort, controlPort] = ports as [MessagePort, MessagePort];
 
     const received: string[] = [];
-    dataPort.on("message", (chunk) => received.push(Buffer.from(chunk).toString()));
+    dataPort.on("message", (chunk) =>
+      received.push(chunk === null ? "<end>" : Buffer.from(chunk).toString())
+    );
 
     rsc.write("first");
     await new Promise((r) => setTimeout(r, 20));
@@ -53,7 +56,8 @@ describe("createHtmlStream: Flight input that ends during HTML backpressure", ()
     expect(await resumed).toMatchObject({ type: "RESUME" });
     await new Promise((r) => setTimeout(r, 20));
 
-    expect(received.join(",")).toBe("first,last");
+    // Every queued chunk, then the end-of-input marker, once and last.
+    expect(received.join(",")).toBe("first,last,<end>");
 
     dataPort.close();
     controlPort.close();
