@@ -5,6 +5,7 @@ import { handleHtmlRender } from "./handleHtmlRender.client.js";
 import type { HtmlWorkerInputMessage } from "./types.js";
 import { serializeError } from "../../error/serializeError.js";
 import { serializeErrorInfo } from "../../error/serializeErrorInfo.js";
+import { toError } from "../../error/toError.js";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { activeStreams, moduleIds } from "./state.client.js";
 import { createDrainQueue } from "../../stream/createDrainQueue.js";
@@ -61,6 +62,10 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
     try {
       // Create a PassThrough stream to receive RSC data from the main thread
       const rscStream = new PassThrough();
+      // The main thread can end the input with an error (ERROR, ABORT)
+      // before the first chunk, when no render is reading it yet. Without a
+      // listener that destroy would crash the worker.
+      rscStream.on("error", () => {});
       let streamStarted = false;
       let htmlRenderStarted = false;
       // HTML output: held while the main thread is backpressured (PAUSE /
@@ -190,6 +195,11 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
               logger.info(`[html-worker] Main thread ready, resuming HTML output for route: ${id}`);
             }
             htmlQueue.resume();
+            break;
+          case 'ERROR':
+            // The Flight stream failed on the main thread, which has already
+            // failed the render with this error. Stop reading the input.
+            rscStream.destroy(toError(message.error));
             break;
           case 'ABORT':
             // Stream was aborted
