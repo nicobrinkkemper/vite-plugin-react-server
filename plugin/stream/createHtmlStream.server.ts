@@ -74,8 +74,11 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   // same event.
   htmlStream.on("error", () => {});
 
-  // Flow control state for HTML output stream backpressure handling
-  let isStreamEnded = false;
+  // Flow control state for HTML output stream backpressure handling.
+  // The end of the RSC input does not end delivery: chunks queued while the
+  // HTML output was backpressured still go to the worker once it drains. The
+  // render is complete when the worker's null end-message arrives, not when
+  // the input ends.
   let chunkCount = 0; // Track number of chunks sent
   let isHtmlStreamReady = true; // Track if HTML stream can accept more data
   let pendingRscChunks: any[] = []; // Buffer for RSC chunks when HTML stream is backpressured
@@ -89,7 +92,7 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
       );
     }
 
-    while (pendingRscChunks.length > 0 && isHtmlStreamReady && !isStreamEnded) {
+    while (pendingRscChunks.length > 0 && isHtmlStreamReady) {
       const chunk = pendingRscChunks.shift()!;
       try {
         dataPort1.postMessage(chunk);
@@ -115,7 +118,7 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   // Function to send a chunk to the worker
   // Check if HTML stream is ready before sending RSC chunks
   const sendChunk = (chunk: any) => {
-    if (!isStreamEnded && isHtmlStreamReady) {
+    if (isHtmlStreamReady) {
       try {
         dataPort1.postMessage(chunk);
         chunkCount++;
@@ -132,7 +135,7 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
           );
         }
       }
-    } else if (!isStreamEnded) {
+    } else {
       // HTML stream is backpressured, buffer this RSC chunk
       pendingRscChunks.push(chunk);
       if (verbose) {
@@ -308,10 +311,6 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
       sendChunk(chunk);
     });
 
-    rscStream.on("end", () => {
-      isStreamEnded = true;
-    });
-
     rscStream.on("error", (error) => {
       const serializedError = serializeError(error);
       controlPort1.postMessage({ type: "ERROR", error: serializedError });
@@ -348,9 +347,9 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
     typeof htmlTimeout === "number" && htmlTimeout > 0
       ? setTimeout(() => {
           // Completion is an OUTPUT property: the worker's null end-message
-          // calls htmlStream.end(). isStreamEnded would be the wrong guard —
-          // it marks the RSC INPUT fully delivered, which is exactly the
-          // state the canonical wedge is in when it hangs.
+          // calls htmlStream.end(). The end of the RSC input would be the
+          // wrong guard: a fully delivered input is exactly the state the
+          // canonical wedge is in when it hangs.
           if (htmlStream.writableEnded || htmlStream.destroyed) return;
           htmlStream.destroy(
             new Error(

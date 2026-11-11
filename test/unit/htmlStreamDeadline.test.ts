@@ -4,7 +4,7 @@ import { createHtmlStream } from "../../plugin/stream/createHtmlStream.server.js
 
 /**
  * The htmlTimeout whole-render deadline, exercised in its FIRING path. The
- * canonical wedge: the RSC input is fully delivered (isStreamEnded true) and
+ * canonical wedge: the RSC input is fully delivered and
  * the html worker then goes silent — neither output nor ERROR. The deadline
  * must destroy the stream with its named error (guarding on OUTPUT completion,
  * not the input-ended flag), and must NOT fire once the worker's null
