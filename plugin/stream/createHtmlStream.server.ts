@@ -195,23 +195,7 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
         if (deadline) clearTimeout(deadline);
         break;
       case "ERROR":
-        const error = augmentHtmlWorkerError(
-          toError(message.error, message.errorInfo)
-        );
-        htmlStream.destroy(error);
-
-        // Call the error callback if provided
-        if (onError) {
-          const isPanic = panicThreshold === "all_errors";
-          onError(error, isPanic);
-        }
-
-        // Clean up listeners and close ports when stream is destroyed due to error
-        cleanup();
-
-        // Send cleanup message to worker to reset its internal state
-        // This prevents race conditions between page renders
-        htmlWorker.postMessage({ type: "CLEANUP", id: id, route: route });
+        fail(augmentHtmlWorkerError(toError(message.error, message.errorInfo)));
         break;
       case "METRICS":
         break;
@@ -254,12 +238,24 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
     rscStream.on("data", (chunk) => rscQueue.push(chunk));
     rscStream.on("end", () => rscQueue.end());
 
+    // A Flight stream error fails the render here, with that error. The
+    // worker is told on the control port so it stops its render; the data
+    // port carries Flight chunks and the end marker only, and chunks still
+    // held behind a paused output are dropped with the render.
     rscStream.on("error", (error) => {
-      const serializedError = serializeError(error);
-      controlPort1.postMessage({ type: "ERROR", error: serializedError });
-      dataPort1.postMessage({ error: serializedError });
+      controlPort1.postMessage({ type: "ERROR", error: serializeError(error) });
+      fail(toError(error));
     });
   }
+
+  // The render failed: the output is destroyed with the error, which is also
+  // reported through onError, and the worker resets for the next render.
+  const fail = (error: Error) => {
+    htmlStream.destroy(error);
+    if (onError) onError(error, panicThreshold === "all_errors");
+    cleanup();
+    htmlWorker.postMessage({ type: "CLEANUP", id: id, route: route });
+  };
 
   // Unified cleanup function that handles listeners only
   // Let React manage the MessagePort lifecycle to prevent "Connection closed" errors
