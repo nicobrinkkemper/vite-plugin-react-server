@@ -78,7 +78,9 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   // RSC input: held while the HTML output is backpressured. Input keeps
   // arriving during that pause, so the end of the input is not the end of
   // delivery: the end-of-input marker (null) goes to the worker after the
-  // last held chunk.
+  // last held chunk, on the drain that follows. If the HTML stream ends or
+  // is aborted during the pause there is no such drain, and the held chunks
+  // and the marker are never sent: the HTML is done, nothing needs them.
   const rscQueue = createDrainQueue<unknown>(
     (chunk) => dataPort1.postMessage(chunk),
     () => {
@@ -182,13 +184,15 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
         // HTML output's backpressure, not by this message.
         break;
       case "END":
-        // Don't end the stream yet - wait for the null data message
-        // The worker will send null through the data port when actually done
+        // The render is over, so the render deadline has been met. The
+        // stream itself ends on the null data message: HTML can still be
+        // held behind a paused output, and it waits for its reader.
         if (verbose) {
           logger.info(
-            `[createHtmlStream.server:${route}] Received END message, waiting for null data to confirm completion`
+            `[createHtmlStream.server:${route}] Received END message, render complete; waiting for null data to end the stream`
           );
         }
+        if (deadline) clearTimeout(deadline);
         break;
       case "ERROR":
         const error = augmentHtmlWorkerError(
@@ -277,25 +281,39 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
 
   // Note: Process-level cleanup is handled by worker shutdown protocol
 
-  // Whole-render deadline. A wedged worker render — canonically a client
-  // reference whose dynamic import never settles — sends neither output nor
-  // an ERROR message, so the stream would keep its consumer (the SSG
-  // fileWriter, a request handler) waiting forever. Destroying with a named
-  // error rides the same propagation path as worker-reported render errors.
+  // Render deadline: the worker must report the end of its render (END on
+  // the control port, which no pause holds) within htmlTimeout. It covers
+  // the render, not delivery: after END the timer is cleared for good, and
+  // HTML still held behind a paused output waits for its reader. A render
+  // that has not ended by then is in one of two states, told apart by
+  // whether the output is backpressured:
+  //  - Not backpressured: the worker is free to send and has not finished.
+  //    Canonically a wedged render, a client reference whose dynamic import
+  //    never settles, which sends neither END nor ERROR and would keep the
+  //    consumer (the SSG fileWriter, a request handler) waiting forever.
+  //  - Backpressured: the consumer is not reading, so the worker's output is
+  //    paused and RSC input is held back from it until the output drains. A
+  //    render that still needs that input cannot finish; a wedged render
+  //    looks the same from here.
+  // The end of the RSC input is no guard for either: a fully delivered input
+  // is exactly the state the canonical wedge is in when it hangs. Destroying
+  // with a named error rides the same propagation path as worker-reported
+  // render errors.
   const deadline =
     typeof htmlTimeout === "number" && htmlTimeout > 0
       ? setTimeout(() => {
-          // Completion is an OUTPUT property: the worker's null end-message
-          // calls htmlStream.end(). The end of the RSC input would be the
-          // wrong guard: a fully delivered input is exactly the state the
-          // canonical wedge is in when it hangs.
           if (htmlStream.writableEnded || htmlStream.destroyed) return;
           htmlStream.destroy(
             new Error(
               `[createHtmlStream:${route}] HTML render did not complete within ${htmlTimeout}ms — ` +
-                `the html worker sent neither output nor an error. A client-reference ` +
-                `module that fails to load at render time can wedge the render this way; ` +
-                `check that the client build output is resolvable from the render.`
+                (htmlStream.writableNeedDrain
+                  ? `its output is not being read, so the html worker is paused and RSC input ` +
+                    `is held back until the output drains. A render that still needs that ` +
+                    `input cannot finish while the consumer does not read; a wedged render ` +
+                    `looks the same from here.`
+                  : `the html worker neither finished rendering nor reported an error. A client-reference ` +
+                    `module that fails to load at render time can wedge the render this way; ` +
+                    `check that the client build output is resolvable from the render.`)
             )
           );
           cleanup();

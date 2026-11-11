@@ -65,17 +65,15 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
       let htmlRenderStarted = false;
       // HTML output: held while the main thread is backpressured (PAUSE /
       // RESUME). The main thread ends its response and removes its listeners
-      // on the end-of-data marker, so it goes out after the last held chunk.
-      // Same pattern as the RSC worker: null on the data port, then END on
-      // the control port.
+      // on the end-of-data marker (null), so it goes out after the last held
+      // chunk.
       const htmlQueue = createDrainQueue<unknown>(
         (chunk) => dataPort.postMessage(chunk),
         () => {
           if (verbose) {
-            logger.info(`[html-worker] All HTML sent, signaling end for route: ${id}`);
+            logger.info(`[html-worker] All HTML sent, signaling end of data for route: ${id}`);
           }
           dataPort.postMessage(null);
-          controlPort.postMessage({ type: "END", id });
         }
       );
 
@@ -136,7 +134,14 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
                 errorInfo: serializeErrorInfo(errorInfo),
               });
             },
-            onEnd: () => htmlQueue.end(),
+            onEnd: (id) => {
+              // Two signals, on purpose. END says the RENDER is over; it
+              // goes on the control port, which a PAUSE does not hold, so
+              // the main thread learns it at once and stops its render
+              // deadline. The end of the DATA waits behind the held HTML.
+              controlPort.postMessage({ type: "END", id });
+              htmlQueue.end();
+            },
             onShellError: (id, error) => {
               controlPort.postMessage({
                 type: "SHELL_ERROR",

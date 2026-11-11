@@ -12,9 +12,12 @@ import { createWorker } from "../../dist/plugin/worker/createWorker.js";
  * marker (null on the data port) must come AFTER the held HTML, because the
  * main thread ends its response and drops its listeners on it.
  *
+ * END on the control port says the render is over. No pause holds it, so it
+ * arrives while the HTML and the end-of-data marker are still held.
+ *
  * No sleeps: every step waits on a message the worker sends anyway (HTML on
- * the data port; READY per received Flight chunk and METRICS once the render
- * is complete on the control port). The one timer only turns a message that
+ * the data port; READY per received Flight chunk and END on the control
+ * port). The one timer only turns a message that
  * never arrives into a readable failure.
  *
  * PAUSE has no acknowledgement and the two ports are not ordered against
@@ -133,22 +136,22 @@ describe("html worker: render ends while the main thread is paused", () => {
       await sendRow(padRow(8));
       await sendRow(padRow(9));
 
-      // The boundary resolves while paused. METRICS marks the render
-      // complete; two more answered chunks put the end of the render (and
-      // anything the worker sent with it) behind us.
+      // The boundary resolves while paused. END reports the end of the
+      // render at once; two more answered chunks put anything the worker
+      // sent with it behind us.
       await sendRow(lateRow);
-      await controlMessages.until("METRICS", (m) => m.type === "METRICS");
+      await controlMessages.until("END", (m) => m.type === "END");
       await sendRow(padRow(10));
       await sendRow(padRow(11));
 
-      // The late HTML is held: this is what makes the ordering below a test
-      // of the pause path.
+      // The late HTML and the end-of-data marker are held: this is what
+      // makes the ordering below a test of the pause path.
       expect(events.count(hasText("LATE_CONTENT"))).toBe(0);
+      expect(events.count((e) => e.kind === "eof")).toBe(0);
 
       control.port1.postMessage({ type: "RESUME", id: "/paused" });
       await events.until("late HTML", hasText("LATE_CONTENT"));
       await events.until("end-of-data marker", (e) => e.kind === "eof");
-      await controlMessages.until("END", (m) => m.type === "END");
 
       const eofAt = events.entries.findIndex((e) => e.kind === "eof");
       const lateAt = events.entries.findIndex(hasText("LATE_CONTENT"));
