@@ -11,6 +11,18 @@ import { createWorker } from "../../dist/plugin/worker/createWorker.js";
  * Suspense boundary resolves while the main thread is paused. The end-of-data
  * marker (null on the data port) must come AFTER the held HTML, because the
  * main thread ends its response and drops its listeners on it.
+ *
+ * No sleeps: every step waits on a message the worker sends anyway (HTML on
+ * the data port; READY per received Flight chunk and METRICS once the render
+ * is complete on the control port). The one timer only turns a message that
+ * never arrives into a readable failure.
+ *
+ * PAUSE has no acknowledgement and the two ports are not ordered against
+ * each other. The test therefore lets the worker answer two Flight chunks
+ * sent after PAUSE before it sends the row that finishes the render, and it
+ * asserts that the late HTML was really held: not there when RESUME is sent.
+ * A PAUSE that landed too late fails that assertion instead of passing
+ * without testing anything.
  */
 
 const silentLogger = { info() {}, warn() {}, error() {} } as never;
@@ -23,8 +35,39 @@ const shellRows =
   `0:["$","main",null,{"children":[["$","p","shell",{"children":"${SHELL}"}],` +
   `["$","$1","late",{"fallback":"waiting","children":"$L2"}]]}]\n`;
 const lateRow = `2:["$","p",null,{"children":"LATE_CONTENT"}]\n`;
+// A row nothing references: the worker answers READY and renders nothing.
+const padRow = (n: number) => `${n}:"pad"\n`;
 
 type Event = { kind: "html"; text: string } | { kind: "eof" };
+
+/** A growing log with a promise for "an entry matching this has arrived". */
+function createLog<T>(name: string) {
+  const entries: T[] = [];
+  let notify = () => {};
+  return {
+    entries,
+    add(entry: T) {
+      entries.push(entry);
+      notify();
+    },
+    count: (match: (entry: T) => boolean) => entries.filter(match).length,
+    until(what: string, match: (entry: T) => boolean, times = 1) {
+      return new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error(`${name}: ${what} never arrived`)),
+          10_000
+        );
+        const check = () => {
+          if (entries.filter(match).length < times) return;
+          clearTimeout(timer);
+          resolve();
+        };
+        notify = check;
+        check();
+      });
+    },
+  };
+}
 
 describe("html worker: render ends while the main thread is paused", () => {
   it("sends the held HTML before the end-of-data marker", async () => {
@@ -43,19 +86,26 @@ describe("html worker: render ends while the main thread is paused", () => {
     try {
       const data = new MessageChannel();
       const control = new MessageChannel();
-      const events: Event[] = [];
-      const ended = new Promise<void>((resolve) => {
-        data.port1.on("message", (chunk) => {
-          if (chunk == null) {
-            events.push({ kind: "eof" });
-            resolve();
-          } else {
-            events.push({ kind: "html", text: Buffer.from(chunk).toString() });
-          }
-        });
-      });
-      const controlMessages: Array<{ type: string }> = [];
-      control.port1.on("message", (m) => controlMessages.push(m));
+      const events = createLog<Event>("data port");
+      const controlMessages = createLog<{ type: string }>("control port");
+      data.port1.on("message", (chunk) =>
+        events.add(
+          chunk == null
+            ? { kind: "eof" }
+            : { kind: "html", text: Buffer.from(chunk).toString() }
+        )
+      );
+      control.port1.on("message", (m) => controlMessages.add(m));
+
+      const isReady = (m: { type: string }) => m.type === "READY";
+      const hasText = (text: string) => (e: Event) =>
+        e.kind === "html" && e.text.includes(text);
+      // Send one Flight chunk and wait until the worker has taken it.
+      const sendRow = async (row: string) => {
+        const seen = controlMessages.count(isReady);
+        data.port1.postMessage(Buffer.from(row));
+        await controlMessages.until("READY", isReady, seen + 1);
+      };
 
       worker.postMessage(
         {
@@ -74,37 +124,37 @@ describe("html worker: render ends while the main thread is paused", () => {
         [data.port2, control.port2] as never
       );
 
-      // Shell first, wait until its HTML (with the fallback) has arrived.
-      data.port1.postMessage(Buffer.from(shellRows));
-      const deadline = Date.now() + 10_000;
-      while (!events.some((e) => e.kind === "html" && e.text.includes("waiting"))) {
-        if (Date.now() > deadline) throw new Error("shell HTML never arrived");
-        await new Promise((r) => setTimeout(r, 10));
-      }
+      // Shell first, until its HTML (with the fallback) has arrived.
+      await sendRow(shellRows);
+      await events.until("shell HTML", hasText("waiting"));
 
-      // Pause, then let the boundary resolve while paused.
+      // Pause, and let the worker's loop turn before the render finishes.
       control.port1.postMessage({ type: "PAUSE", id: "/paused" });
-      await new Promise((r) => setTimeout(r, 50));
-      data.port1.postMessage(Buffer.from(lateRow));
-      await new Promise((r) => setTimeout(r, 200));
+      await sendRow(padRow(8));
+      await sendRow(padRow(9));
+
+      // The boundary resolves while paused. METRICS marks the render
+      // complete; two more answered chunks put the end of the render (and
+      // anything the worker sent with it) behind us.
+      await sendRow(lateRow);
+      await controlMessages.until("METRICS", (m) => m.type === "METRICS");
+      await sendRow(padRow(10));
+      await sendRow(padRow(11));
+
+      // The late HTML is held: this is what makes the ordering below a test
+      // of the pause path.
+      expect(events.count(hasText("LATE_CONTENT"))).toBe(0);
 
       control.port1.postMessage({ type: "RESUME", id: "/paused" });
-      await Promise.race([
-        ended,
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("no end-of-data marker")), 5_000)
-        ),
-      ]);
-      await new Promise((r) => setTimeout(r, 100));
+      await events.until("late HTML", hasText("LATE_CONTENT"));
+      await events.until("end-of-data marker", (e) => e.kind === "eof");
+      await controlMessages.until("END", (m) => m.type === "END");
 
-      const eofAt = events.findIndex((e) => e.kind === "eof");
-      const lateAt = events.findIndex(
-        (e) => e.kind === "html" && e.text.includes("LATE_CONTENT")
-      );
-      expect(lateAt).toBeGreaterThan(-1);
-      expect(eofAt).toBe(events.length - 1);
+      const eofAt = events.entries.findIndex((e) => e.kind === "eof");
+      const lateAt = events.entries.findIndex(hasText("LATE_CONTENT"));
+      expect(eofAt).toBe(events.entries.length - 1);
       expect(lateAt).toBeLessThan(eofAt);
-      expect(controlMessages.filter((m) => m.type === "END")).toHaveLength(1);
+      expect(controlMessages.count((m) => m.type === "END")).toBe(1);
 
       data.port1.close();
       control.port1.close();
