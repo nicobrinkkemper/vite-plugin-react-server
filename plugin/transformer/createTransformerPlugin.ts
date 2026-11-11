@@ -24,6 +24,10 @@ import { parse as rslParse } from "react-server-loader";
 import { isViteInjectedCode } from "../loader/isViteInjectedCode.js";
 import { isVendorModule } from "./isVendorModule.js";
 import { hasLeadingDirective } from "./hasLeadingDirective.js";
+import {
+  serverReferenceProxyModule,
+  serverReferenceSsrStubModule,
+} from "./serverReferenceModule.js";
 import { dependencyClientReferenceId } from "./dependencyClientReferencePlugin.js";
 
 export interface TransformerPluginOptions {
@@ -259,7 +263,7 @@ export const createTransformerPlugin = (
           ) {
             return null;
           }
-          let [, normalizedPath] = resolvedUserOptions.normalizer(id);
+          const [, normalizedPath] = resolvedUserOptions.normalizer(id);
 
           // Check if this is a built file that doesn't need transformation
           // Normalize paths to handle cross-platform differences
@@ -500,35 +504,17 @@ export const createTransformerPlugin = (
                 serverAnalysis.exports.exports.values()
               ).map((e) => e.exportName);
               if (exportNames.length > 0) {
-                if (this.environment?.name === "client") {
-                  // The esm createServerReference is transport-safe here: its
-                  // callable only delegates to callServer(id, args), and every
-                  // flavor-sensitive step (encodeReply, response decode) lives
-                  // in createCallServer's transport chooser. Emitting the
-                  // webpack client instead would read module-loading globals
-                  // at eval time — an install-order footgun for no behavior.
-                  const proxy = [
-                    `import { createServerReference } from "react-server-dom-esm/client.browser";`,
-                    `import { createCallServer } from "vite-plugin-react-server/utils";`,
-                    `const callServer = createCallServer(${JSON.stringify(viteBase)});`,
-                    ...exportNames.map(
-                      (n) =>
-                        `export const ${n} = createServerReference(${JSON.stringify(
-                          `${finalModuleID}#${n}`
-                        )}, callServer);`
-                    ),
-                  ].join("\n");
-                  return { code: proxy, map: null };
-                }
-                const stub = exportNames
-                  .map(
-                    (n) =>
-                      `export const ${n} = () => { throw new Error(${JSON.stringify(
-                        `Server function "${n}" cannot run during SSR; it executes in the browser via a server reference.`
-                      )}); };`
-                  )
-                  .join("\n");
-                return { code: stub, map: null };
+                return {
+                  code:
+                    this.environment?.name === "client"
+                      ? serverReferenceProxyModule(
+                          finalModuleID,
+                          exportNames,
+                          viteBase
+                        )
+                      : serverReferenceSsrStubModule(exportNames),
+                  map: null,
+                };
               }
             }
           }
