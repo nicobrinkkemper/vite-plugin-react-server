@@ -1,5 +1,6 @@
 import { createFlightCache, type FlightCache } from "./flightCache.js";
 import type { ToPath } from "./register.js";
+import { stripBasePath } from "../utils/basePath.js";
 
 // Headless client router: history + a flight cache + a subscribe store. The
 // React bindings (<Router>, useLocation, useParams) are a thin layer over this
@@ -69,8 +70,7 @@ export function createRouter<T>(opts: CreateRouterOptions<T>): Router<T> {
   // App-relative on the inside, based at the document boundary: reading the
   // location strips the base; history writes and hrefs compose it back. With
   // the default "/" both are identity.
-  const stripBase = (url: string): string =>
-    base !== "/" && url.startsWith(base) ? url.slice(base.length - 1) : url;
+  const stripBase = (url: string): string => stripBasePath(url, base);
   const withBase = (to: string): string =>
     base === "/" ? to : base.slice(0, -1) + to;
   const currentUrl = () =>

@@ -1,3 +1,11 @@
+import {
+  basePathOf,
+  isAbsoluteURL,
+  isBlankRegex,
+  joinBaseURL,
+  stripBasePath,
+} from "./basePath.js";
+
 /**
  * # createAbsoluteUrl
  *
@@ -75,24 +83,13 @@ export const createAbsoluteURL = (
  * baseURL "/" + path "https://bidoof.com" -> should not concatenate to /https://bidoof.com"
  */
 export const createBaseURL = (withBaseURL: string) => {
-  if(withBaseURL === ''){
-    return (path: string) => path;
-  }
+  const join = joinBaseURL(withBaseURL);
+  if (withBaseURL === "") return join;
   if (withBaseURL.endsWith("/")) {
-    return (path: string) => {
-      if (path === "") return withBaseURL;
-      if (path.startsWith(withBaseURL) || isAbsoluteURL(path)) return path;
-      return `${withBaseURL}${removeLeadingSlash(path)}`;
-    };
-  } else {
-    return (path: string) => {
-      if (path === "") return withBaseURL;
-      if (isAbsoluteURL(path)) return path;
-      if (path.startsWith("/")) return withBaseURL + path;
-      if (path.startsWith(withBaseURL)) return path;
-      return `${withBaseURL}/${path}`;
-    };
+    return (path: string) => (path.startsWith(withBaseURL) ? path : join(path));
   }
+  return (path: string) =>
+    !path.startsWith("/") && path.startsWith(withBaseURL) ? path : join(path);
 };
 
 /** Remove a single trailing slash from the URL if it ends with one */
@@ -109,9 +106,7 @@ export const removeLeadingSlash = (url: string) =>
 export const addLeadingSlash = (url: string) =>
   url.startsWith("/") ? url : `/${url}`;
 
-export const isBlankRegex = /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:)?\/\//;
-export const isAbsoluteURL = (url: string) =>
-  isBlankRegex.test(url) || url.startsWith("//");
+export { isAbsoluteURL, isBlankRegex };
 
 export const folderName = (path: string, withBaseURL: string) => {
   const baseURL = createBaseURL(withBaseURL);
@@ -162,6 +157,11 @@ export const createPageURL = (
     : addTrailingSlash
 ) => {
   return (to: string, fileName: string = "index.rsc") => {
+    // `to` is a document location. Its base comes off by the one rule
+    // (stripBasePath) and goes back on unconditionally, so a route whose first
+    // segment equals the base (`/docs/docs/intro/` under `/docs/`) keeps both.
+    // An app-relative path outside the base passes the strip untouched.
+    //
     // The router hands over the whole location (`/level/?course=x`), but the
     // flight file sits on the PATHNAME: `<pathname>/index.rsc?course=x`. Built
     // from the full string instead, `/level/?course=x/index.rsc` asks a static
@@ -178,8 +178,12 @@ export const createPageURL = (
       const folderName = addTrailingSlash(
         pathname.replace(/\[index.(html?|rsc|HTML?)]$/, "")
       );
-      const baseURL = createBaseURL(baseURLString);
-      const rscPath = baseURL(folderName) + fileName + search;
+      const rscPath =
+        joinBaseURL(baseURLString)(
+          stripBasePath(folderName, basePathOf(baseURLString))
+        ) +
+        fileName +
+        search;
       // Create moduleBaseURL and normalize it to match input format
       const moduleBaseURL = parseURL(baseURLString, withPublicOrigin);
       if (moduleBaseURL.type === "error") {

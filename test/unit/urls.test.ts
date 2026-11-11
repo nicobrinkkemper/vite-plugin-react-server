@@ -190,6 +190,38 @@ describe('URL utilities', () => {
     });
   });
 
+  // The location handed to createPageURL is a document location: the base
+  // comes off once and goes back on, so a route whose first segment equals the
+  // base keeps that segment.
+  describe('createPageURL with a route named like the base', () => {
+    it.each(['/docs/', '/docs'])('base %s keeps the route segment', (base) => {
+      const pageURL = createPageURL(base, 'http://localhost:5173');
+      expect(pageURL('/docs/docs/intro/').indexRSC).toBe(
+        'http://localhost:5173/docs/docs/intro/index.rsc'
+      );
+      expect(pageURL('/docs/intro/').indexRSC).toBe(
+        'http://localhost:5173/docs/intro/index.rsc'
+      );
+      expect(pageURL('/docs/').indexRSC).toBe(
+        'http://localhost:5173/docs/index.rsc'
+      );
+    });
+
+    it('still bases an app-relative path outside the base', () => {
+      const pageURL = createPageURL('/docs/', 'http://localhost:5173');
+      expect(pageURL('/intro/').indexRSC).toBe(
+        'http://localhost:5173/docs/intro/index.rsc'
+      );
+    });
+
+    it('strips the path of an absolute base the same way', () => {
+      const pageURL = createPageURL('https://cdn.example/docs/', '');
+      expect(pageURL('/docs/docs/intro/').indexRSC).toBe(
+        'https://cdn.example/docs/docs/intro/index.rsc'
+      );
+    });
+  });
+
   describe('createPageURL in a browser (origin-split regression)', () => {
     // The bug this pins: a baked PUBLIC_ORIGIN resolved module/rsc URLs onto
     // an ABSOLUTE origin. Served from any other origin (port collision,
