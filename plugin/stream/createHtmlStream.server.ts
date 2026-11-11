@@ -5,6 +5,7 @@ import { createSerializableHandlerOptions } from "../helpers/createSerializableH
 import { toError } from "../error/toError.js";
 import { serializeError } from "../error/serializeError.js";
 import { createMessageChannels } from "./createMessageChannels.js";
+import { createDrainQueue } from "./createDrainQueue.js";
 
 /**
  * A null React hook dispatcher during worker SSR (`Cannot read properties of null
@@ -74,74 +75,23 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
   // same event.
   htmlStream.on("error", () => {});
 
-  // Flow control state for HTML output stream backpressure handling
-  let isStreamEnded = false;
-  let chunkCount = 0; // Track number of chunks sent
-  let isHtmlStreamReady = true; // Track if HTML stream can accept more data
-  let pendingRscChunks: any[] = []; // Buffer for RSC chunks when HTML stream is backpressured
-  // No need to track END message state - rely on null data message for completion
-
-  // Function to process pending RSC chunks when HTML stream becomes ready
-  const processPendingRscChunks = () => {
-    if (verbose && pendingRscChunks.length > 0) {
-      logger.info(
-        `[createHtmlStream.server:${route}] Processing ${pendingRscChunks.length} pending RSC chunks`
-      );
-    }
-
-    while (pendingRscChunks.length > 0 && isHtmlStreamReady && !isStreamEnded) {
-      const chunk = pendingRscChunks.shift()!;
-      try {
-        dataPort1.postMessage(chunk);
-        chunkCount++;
-        if (verbose) {
-          logger.info(
-            `[createHtmlStream.server:${route}] Processed pending RSC chunk ${chunkCount}`
-          );
-        }
-      } catch (error) {
-        // Still backpressure, put chunk back and stop
-        pendingRscChunks.unshift(chunk);
-        if (verbose) {
-          logger.info(
-            `[createHtmlStream.server:${route}] Still backpressure, stopping processing`
-          );
-        }
-        break;
-      }
-    }
-  };
-
-  // Function to send a chunk to the worker
-  // Check if HTML stream is ready before sending RSC chunks
-  const sendChunk = (chunk: any) => {
-    if (!isStreamEnded && isHtmlStreamReady) {
-      try {
-        dataPort1.postMessage(chunk);
-        chunkCount++;
-        if (verbose) {
-          logger.info(
-            `[createHtmlStream.server:${route}] Sent chunk ${chunkCount}`
-          );
-        }
-      } catch (error) {
-        // MessagePort error - this will naturally backpressure the RSC stream
-        if (verbose) {
-          logger.info(
-            `[createHtmlStream.server:${route}] MessagePort backpressure detected, RSC stream will naturally slow down`
-          );
-        }
-      }
-    } else if (!isStreamEnded) {
-      // HTML stream is backpressured, buffer this RSC chunk
-      pendingRscChunks.push(chunk);
+  // RSC input: held while the HTML output is backpressured. Input keeps
+  // arriving during that pause, so the end of the input is not the end of
+  // delivery: the end-of-input marker (null) goes to the worker after the
+  // last held chunk, on the drain that follows. If the HTML stream ends or
+  // is aborted during the pause there is no such drain, and the held chunks
+  // and the marker are never sent: the HTML is done, nothing needs them.
+  const rscQueue = createDrainQueue<unknown>(
+    (chunk) => dataPort1.postMessage(chunk),
+    () => {
       if (verbose) {
         logger.info(
-          `[createHtmlStream.server:${route}] HTML stream backpressured, buffering RSC chunk (${pendingRscChunks.length} pending)`
+          `[createHtmlStream.server:${route}] RSC input fully delivered to the worker`
         );
       }
+      dataPort1.postMessage(null);
     }
-  };
+  );
 
   // Data port - receives HTML data from worker
   const dataMessageHandler = (event: any) => {
@@ -193,7 +143,7 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
             `[createHtmlStream.server:${route}] HTML stream backpressured, pausing worker`
           );
         }
-        isHtmlStreamReady = false;
+        rscQueue.pause();
         
         // Tell the worker to pause sending more data
         controlPort1.postMessage({ type: "PAUSE", id: id });
@@ -205,9 +155,8 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
               `[createHtmlStream.server:${route}] HTML stream drained, resuming worker`
             );
           }
-          isHtmlStreamReady = true;
-          // Process any pending RSC chunks first
-          processPendingRscChunks();
+          // RSC chunks held during the pause go first
+          rscQueue.resume();
           // Tell worker it can resume sending data
           controlPort1.postMessage({ type: "RESUME", id: id });
         });
@@ -231,21 +180,19 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
 
     switch (message.type) {
       case "READY":
-        // Flow control: HTML worker is ready for more data
-        if (verbose) {
-          logger.info(`[createHtmlStream.server:${route}] HTML worker ready for more data`);
-        }
-        // Process any pending RSC chunks that were buffered due to backpressure
-        processPendingRscChunks();
+        // The worker acknowledges each RSC chunk; delivery is paced by the
+        // HTML output's backpressure, not by this message.
         break;
       case "END":
-        // Don't end the stream yet - wait for the null data message
-        // The worker will send null through the data port when actually done
+        // The render is over, so the render deadline has been met. The
+        // stream itself ends on the null data message: HTML can still be
+        // held behind a paused output, and it waits for its reader.
         if (verbose) {
           logger.info(
-            `[createHtmlStream.server:${route}] Received END message, waiting for null data to confirm completion`
+            `[createHtmlStream.server:${route}] Received END message, render complete; waiting for null data to end the stream`
           );
         }
+        if (deadline) clearTimeout(deadline);
         break;
       case "ERROR":
         const error = augmentHtmlWorkerError(
@@ -304,13 +251,8 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
     }
 
     // Pipe the RSC stream data directly to the worker via dataPort
-    rscStream.on("data", (chunk) => {
-      sendChunk(chunk);
-    });
-
-    rscStream.on("end", () => {
-      isStreamEnded = true;
-    });
+    rscStream.on("data", (chunk) => rscQueue.push(chunk));
+    rscStream.on("end", () => rscQueue.end());
 
     rscStream.on("error", (error) => {
       const serializedError = serializeError(error);
@@ -339,25 +281,39 @@ export const createHtmlStream: CreateHtmlStreamFn = function _createHtmlStream(
 
   // Note: Process-level cleanup is handled by worker shutdown protocol
 
-  // Whole-render deadline. A wedged worker render — canonically a client
-  // reference whose dynamic import never settles — sends neither output nor
-  // an ERROR message, so the stream would keep its consumer (the SSG
-  // fileWriter, a request handler) waiting forever. Destroying with a named
-  // error rides the same propagation path as worker-reported render errors.
+  // Render deadline: the worker must report the end of its render (END on
+  // the control port, which no pause holds) within htmlTimeout. It covers
+  // the render, not delivery: after END the timer is cleared for good, and
+  // HTML still held behind a paused output waits for its reader. A render
+  // that has not ended by then is in one of two states, told apart by
+  // whether the output is backpressured:
+  //  - Not backpressured: the worker is free to send and has not finished.
+  //    Canonically a wedged render, a client reference whose dynamic import
+  //    never settles, which sends neither END nor ERROR and would keep the
+  //    consumer (the SSG fileWriter, a request handler) waiting forever.
+  //  - Backpressured: the consumer is not reading, so the worker's output is
+  //    paused and RSC input is held back from it until the output drains. A
+  //    render that still needs that input cannot finish; a wedged render
+  //    looks the same from here.
+  // The end of the RSC input is no guard for either: a fully delivered input
+  // is exactly the state the canonical wedge is in when it hangs. Destroying
+  // with a named error rides the same propagation path as worker-reported
+  // render errors.
   const deadline =
     typeof htmlTimeout === "number" && htmlTimeout > 0
       ? setTimeout(() => {
-          // Completion is an OUTPUT property: the worker's null end-message
-          // calls htmlStream.end(). isStreamEnded would be the wrong guard —
-          // it marks the RSC INPUT fully delivered, which is exactly the
-          // state the canonical wedge is in when it hangs.
           if (htmlStream.writableEnded || htmlStream.destroyed) return;
           htmlStream.destroy(
             new Error(
               `[createHtmlStream:${route}] HTML render did not complete within ${htmlTimeout}ms — ` +
-                `the html worker sent neither output nor an error. A client-reference ` +
-                `module that fails to load at render time can wedge the render this way; ` +
-                `check that the client build output is resolvable from the render.`
+                (htmlStream.writableNeedDrain
+                  ? `its output is not being read, so the html worker is paused and RSC input ` +
+                    `is held back until the output drains. A render that still needs that ` +
+                    `input cannot finish while the consumer does not read; a wedged render ` +
+                    `looks the same from here.`
+                  : `the html worker neither finished rendering nor reported an error. A client-reference ` +
+                    `module that fails to load at render time can wedge the render this way; ` +
+                    `check that the client build output is resolvable from the render.`)
             )
           );
           cleanup();

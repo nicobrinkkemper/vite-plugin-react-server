@@ -7,6 +7,7 @@ import { serializeError } from "../../error/serializeError.js";
 import { serializeErrorInfo } from "../../error/serializeErrorInfo.js";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
 import { activeStreams, moduleIds } from "./state.client.js";
+import { createDrainQueue } from "../../stream/createDrainQueue.js";
 
 const verbose = Boolean(workerData?.userOptions?.verbose);
 const logger = createLogger(workerData.resolvedConfig?.logLevel ?? "info");
@@ -62,43 +63,19 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
       const rscStream = new PassThrough();
       let streamStarted = false;
       let htmlRenderStarted = false;
-      let isMainThreadReady = true; // Flag to indicate if the main thread is ready for more data
-      let pendingHtmlChunks: any[] = []; // Buffer for HTML chunks when main thread is not ready
-      let pendingEndMessage = false; // Track if we have a pending END message
-      let chunksSentCount = 0; // Track number of chunks sent to main thread
-      let chunksReceivedCount = 0; // Track number of chunks confirmed received by main thread
-      
-      // Function to process pending HTML chunks when main thread becomes ready
-      const processPendingHtmlChunks = () => {
-        if (verbose && pendingHtmlChunks.length > 0) {
-          logger.info(`[html-worker] Processing ${pendingHtmlChunks.length} pending HTML chunks for route: ${id}`);
-        }
-        
-        while (pendingHtmlChunks.length > 0 && isMainThreadReady) {
-          const chunk = pendingHtmlChunks.shift()!;
-          dataPort.postMessage(chunk);
-          chunksSentCount++;
+      // HTML output: held while the main thread is backpressured (PAUSE /
+      // RESUME). The main thread ends its response and removes its listeners
+      // on the end-of-data marker (null), so it goes out after the last held
+      // chunk.
+      const htmlQueue = createDrainQueue<unknown>(
+        (chunk) => dataPort.postMessage(chunk),
+        () => {
           if (verbose) {
-            logger.info(`[html-worker] Processed pending HTML chunk ${chunksSentCount} for route: ${id}`);
+            logger.info(`[html-worker] All HTML sent, signaling end of data for route: ${id}`);
           }
+          dataPort.postMessage(null);
         }
-        
-        // If all chunks are processed and we have a pending END message, check if we can send it
-        if (pendingHtmlChunks.length === 0 && pendingEndMessage && isMainThreadReady) {
-          // Only send END if all sent chunks have been confirmed received
-          if (chunksSentCount === chunksReceivedCount) {
-            if (verbose) {
-              logger.info(`[html-worker] Sending pending END message for route: ${id} (all ${chunksSentCount} chunks confirmed received)`);
-            }
-            pendingEndMessage = false;
-            controlPort.postMessage({ type: "END", id });
-          } else {
-            if (verbose) {
-              logger.info(`[html-worker] Waiting to send END message for route: ${id} (${chunksReceivedCount}/${chunksSentCount} chunks confirmed received)`);
-            }
-          }
-        }
-      };
+      );
 
       // Set up the HTML render process once when we receive the first chunk
       const startHtmlRender = () => {
@@ -158,19 +135,12 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
               });
             },
             onEnd: (id) => {
-              // Follow the same pattern as RSC worker: send null to data port, then END to control port
-              if (verbose) {
-                logger.info(`[html-worker] React stream ended for route: ${id}, signaling end of data stream`);
-              }
-              
-              // Signal end of data stream via data port (same as RSC worker)
-              dataPort.postMessage(null);
-              
-              // Send END control message
-              if (verbose) {
-                logger.info(`[html-worker] Sending END control message for route: ${id}`);
-              }
+              // Two signals, on purpose. END says the RENDER is over; it
+              // goes on the control port, which a PAUSE does not hold, so
+              // the main thread learns it at once and stops its render
+              // deadline. The end of the DATA waits behind the held HTML.
               controlPort.postMessage({ type: "END", id });
+              htmlQueue.end();
             },
             onShellError: (id, error) => {
               controlPort.postMessage({
@@ -179,23 +149,8 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
                 error: serializeError(error),
               });
             },
-            onData: (_id, data) => {
-              // Send HTML data via dataPort (raw data, no type wrapper)
-              // But only if the main thread is ready to receive it
-              if (isMainThreadReady) {
-                dataPort.postMessage(data);
-                chunksSentCount++;
-                if (verbose) {
-                  logger.info(`[html-worker] Sent HTML chunk ${chunksSentCount} for route: ${id}`);
-                }
-              } else {
-                // Main thread is backpressured, buffer this data
-                pendingHtmlChunks.push(data);
-                if (verbose) {
-                  logger.info(`[html-worker] Main thread backpressured, buffering HTML chunk for route: ${id}`);
-                }
-              }
-            },
+            // Raw HTML, no type wrapper.
+            onData: (_id, data) => htmlQueue.push(data),
             onMetrics: (id, metrics) => {
               controlPort.postMessage({ type: "METRICS", id, metrics });
             },
@@ -227,16 +182,14 @@ export async function messageHandler(msg: HtmlWorkerInputMessage) {
             if (verbose) {
               logger.info(`[html-worker] Main thread backpressured, pausing HTML output for route: ${id}`);
             }
-            isMainThreadReady = false;
+            htmlQueue.pause();
             break;
           case 'RESUME':
             // Main thread is ready to receive more HTML data
-            chunksReceivedCount++;
             if (verbose) {
-              logger.info(`[html-worker] Main thread ready, resuming HTML output for route: ${id} (chunks received: ${chunksReceivedCount})`);
+              logger.info(`[html-worker] Main thread ready, resuming HTML output for route: ${id}`);
             }
-            isMainThreadReady = true;
-            processPendingHtmlChunks();
+            htmlQueue.resume();
             break;
           case 'ABORT':
             // Stream was aborted
