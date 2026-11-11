@@ -16,6 +16,7 @@ import { cleanupWorker } from "../helpers/workerCleanup.js";
 import { resolvePageAndProps } from "../helpers/resolvePageAndProps.js";
 import { isNotFound, isRedirect } from "../router/loaderSignals.js";
 import { RSC_OUTPUT_PATH } from "../config/routeExportNames.js";
+import { routeUnmatchedDevRequest } from "./devPluginShared.js";
 
 export const configureReactServer: ConfigureReactServerFn =
   function _configureReactServer({
@@ -156,6 +157,7 @@ export const configureReactServer: ConfigureReactServerFn =
       if (!info.isRscRequest) {
         return next();
       }
+      if (!routeUnmatchedDevRequest(info, res, handlerOptions)) return;
 
       // If server is restarting, return 503 immediately
       if (isRestarting) {
