@@ -30,9 +30,35 @@ export const OUTCOME = {
 export type Outcome = (typeof OUTCOME)[keyof typeof OUTCOME];
 
 /**
- * The action redirect target as a flight URL: an action `redirect("/next/")`
- * answers 303 pointing at the TARGET's flight — fetch follows it, the client
- * decodes the target page, and the router fixes the address bar.
+ * A redirect target as a flight URL: a loader or action `redirect("/next/")`
+ * answers a flight request with a 3xx pointing at the TARGET's flight — fetch
+ * follows it, the client decodes the target page, and the router fixes the
+ * address bar. The flight file sits on the pathname, so a query string and a
+ * fragment stay behind it: `/search?q=a` is `/search/index.rsc?q=a`.
  */
-export const actionRedirectLocation = (to: string): string =>
-  (to === "/" ? "" : to.replace(/\/$/, "")) + "/index.rsc";
+export const flightRedirectLocation = (
+  to: string,
+  flightFile = "index.rsc"
+): string => {
+  const tailAt = to.search(/[?#]/);
+  const pathname = tailAt === -1 ? to : to.slice(0, tailAt);
+  const tail = tailAt === -1 ? "" : to.slice(tailAt);
+  return pathname.replace(/\/$/, "") + "/" + flightFile + tail;
+};
+
+/**
+ * The inverse, on the client: the route a followed redirect landed on, read
+ * from the final flight URL (`response.url`). The query string is part of the
+ * route. `toRoute` maps the document pathname first (strip a deploy base).
+ */
+export const routeFromFlightUrl = (
+  url: string,
+  toRoute: (pathname: string) => string = (pathname) => pathname
+): string => {
+  const { pathname, search } = new URL(url);
+  let route = toRoute(pathname);
+  if (route.endsWith("/index.rsc")) {
+    route = route.slice(0, -"/index.rsc".length) || "/";
+  }
+  return route + search;
+};
