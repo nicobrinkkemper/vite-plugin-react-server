@@ -241,12 +241,30 @@ export const createTransformerPlugin = (
       buildEnd() {
         const envName = this.environment?.name?.toLowerCase() || "";
         if (!isBuild || !["server", "rsc", "react-server"].includes(envName)) return;
-        // index.html imports the browser entry in every environment; that
-        // is not server code sending a reference.
-        const isCode = (importer: string) => !/\.html?(\?.*)?$/.test(importer);
+        // A reference is one the server can send when a server entry
+        // imports it, directly or through other modules. index.html is in
+        // this graph too and imports the browser entry; what only that
+        // reaches is browser code, not server code sending a reference.
+        const isHtml = (id: string) => /\.html?(\?.*)?$/.test(id);
+        const importersOf = (id: string) => {
+          const info = this.getModuleInfo(id);
+          return info
+            ? [...info.importers, ...info.dynamicImporters].filter((importer) => !isHtml(importer))
+            : undefined;
+        };
         keepClientReferences((moduleId) => {
-          const info = this.getModuleInfo(moduleId);
-          return !!info && [...info.importers, ...info.dynamicImporters].some(isCode);
+          const seen = new Set([moduleId]);
+          const queue = importersOf(moduleId) ?? [];
+          for (const id of queue) {
+            if (seen.has(id)) continue;
+            seen.add(id);
+            const info = this.getModuleInfo(id);
+            if (!info) continue;
+            // Nothing imports it: a server entry.
+            if (info.importers.length + info.dynamicImporters.length === 0) return true;
+            queue.push(...(importersOf(id) ?? []));
+          }
+          return false;
         });
       },
       transform: {

@@ -224,7 +224,7 @@ If detection fails (missing lockfile, monorepo edge), the build continues with w
 
 ## `validateClientReferences`
 
-The server build bakes each client reference's id into the flight payload, and the browser imports `moduleBaseURL + id`. Once every environment is built, the build checks every client module that server code imports: its id must name a file the client build wrote. The build fails when one does not:
+The server build bakes each client reference's id into the flight payload, and the browser imports `moduleBaseURL + id`. Once every environment is built, the build checks every client module that a server entry imports, directly or through other modules: its id must name a file the client build wrote. The build fails when one does not:
 
 ```
 [vite-plugin-react-server] A client reference has no file in the browser build, so the browser could not load it:
