@@ -36,7 +36,7 @@ call `build` instead of `build:vercel`, then remove them.
 To add vprs to your own project:
 
 ```bash
-npm install -D vite-plugin-react-server react react-dom react-server-loader
+npm install -D vite vite-plugin-react-server react react-dom react-server-loader
 npm install -D typescript @types/react
 ```
 

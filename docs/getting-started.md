@@ -34,7 +34,7 @@ mapping. Both produce the same build output and use the same client entry.
 ### Install
 
 ```bash
-npm install -D vite-plugin-react-server react react-dom react-server-loader
+npm install -D vite vite-plugin-react-server react react-dom react-server-loader
 npm install -D typescript @types/react
 ```
 
