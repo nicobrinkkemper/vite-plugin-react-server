@@ -134,6 +134,14 @@ export function Page() {
         panicThreshold: "all_errors",
         verbose: false,
         clientPackages: ["fake-ui"],
+        // The browser build inlines the package into the chunk of the client
+        // module that imports it and writes no file at the reference's own
+        // id. These tests pin the server and prerender side of that
+        // reference, so the browser-file check leaves it alone.
+        build: {
+          validateClientReferences: ({ source }: { source: string }) =>
+            !source.includes("/node_modules/"),
+        },
       }
     );
   }, 30000);
@@ -188,11 +196,13 @@ export function Page() {
 });
 
 describe("Client package with no client-side importer", () => {
-  it("dangles at SSG render: the reference's module is never hosted", async () => {
+  it("fails the build: the reference's module is never hosted", async () => {
     // Same package, but ONLY a server component imports it — nothing pulls
     // fake-ui into the client graph, so the client build never emits
-    // node_modules/fake-ui/index.js and the html-worker's import of the
-    // client reference fails. This pins the reachability rule the docs state;
+    // node_modules/fake-ui/index.js. The build fails either way: on the
+    // browser-file check, or, when the server build prerenders first (under
+    // the react-server condition), on the html-worker's import of the client
+    // reference. This pins the reachability rule the docs state;
     // if hosting ever becomes reference-driven for third-party packages
     // (as it already is for vprs's own router barrel), this expectation
     // should flip.

@@ -218,6 +218,7 @@ export const DEFAULT_CONFIG = {
     assetsDir: "assets",
     hash: "hash",
     preserveModulesRoot: false,
+    validateClientReferences: true,
     rscOutputPath: RSC_OUTPUT_PATH,
     htmlOutputPath: "index.html",
     extensionMap: {

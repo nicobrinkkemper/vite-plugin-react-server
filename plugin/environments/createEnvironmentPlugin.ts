@@ -1,7 +1,7 @@
 import type { Plugin, UserConfig, ViteBuilder, ESBuildOptions } from "vite";
 import { createRequire } from "node:module";
 import { realpathSync } from "node:fs";
-import { sep } from "node:path";
+import { resolve, sep } from "node:path";
 
 // Minimal shape of Vite 8's `oxc` config. Imported from "vite" it would be
 // `OxcOptions`, but that type doesn't exist in Vite 6/7, so model it locally to
@@ -9,7 +9,14 @@ import { sep } from "node:path";
 type OxcLike = {
   jsx?: ({ development?: boolean } & Record<string, unknown>) | string;
 } & Record<string, unknown>;
-import { resolveClientBuildManifestPath } from "../config/clientBuildManifest.js";
+import {
+  createClientBuildManifestLookup,
+  resolveClientBuildManifestPath,
+} from "../config/clientBuildManifest.js";
+import {
+  takeClientReferences,
+  validateClientReferences,
+} from "../bundle/validateClientReferences.js";
 import type { ResolvedUserOptions, VitePluginFn } from "../types.js";
 
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
@@ -544,10 +551,33 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
         environments,
         builder: {
           async buildApp(builder: ViteBuilder) {
+            // References a build in this process recorded before failing.
+            takeClientReferences();
             // Build all environments in definition order
             for (const environment of Object.values(builder.environments)) {
               await builder.build(environment);
             }
+            // Every client reference the server build registered names a
+            // file the browser build wrote. Here, and not earlier: the client
+            // build's manifest and files are final.
+            const manifestPath = resolveClientBuildManifestPath(userOptions, builder.config);
+            validateClientReferences({
+              references: takeClientReferences(),
+              projectRoot: userOptions.projectRoot,
+              browserOutDir: resolve(
+                userOptions.projectRoot,
+                builder.environments["client"]?.config.build.outDir ??
+                  resolve(userOptions.build.outDir, userOptions.build.static)
+              ),
+              moduleBasePath: userOptions.moduleBasePath,
+              manifest: createClientBuildManifestLookup({
+                projectRoot: userOptions.projectRoot,
+                outDir: userOptions.build.outDir,
+                staticDir: userOptions.build.static,
+                getPath: () => manifestPath,
+              }),
+              policy: userOptions.build.validateClientReferences,
+            });
             // Step 4: Run deferred static generation now that all manifests are available
             await runDeferredStaticGeneration();
             // Step 5: Single-isolate edge bake (additive, gated on build.edge).

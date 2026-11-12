@@ -14,6 +14,10 @@ import { resolveRegExp } from "../config/resolveRegExp.js";
 import { userProjectRoot } from "../root.js";
 import { resolveClientBuildManifestPath } from "../config/clientBuildManifest.js";
 import { createDefaultModuleID } from "../config/createModuleID.js";
+import {
+  keepClientReferences,
+  recordClientReference,
+} from "../bundle/validateClientReferences.js";
 import { buildClientPackagesPattern } from "../clientPackages/index.js";
 import { detectClientModule, analyzeModule } from "react-server-loader/directives";
 // rsl's acorn-based parse replaces the bundler's `this.parse`, which is
@@ -233,6 +237,17 @@ export const createTransformerPlugin = (
       async buildStart() {
         // No longer load static manifest - rely on hash coordination to ensure consistent hashes
         // This removes the file I/O dependency and allows parallel builds
+      },
+      buildEnd() {
+        const envName = this.environment?.name?.toLowerCase() || "";
+        if (!isBuild || !["server", "rsc", "react-server"].includes(envName)) return;
+        // index.html imports the browser entry in every environment; that
+        // is not server code sending a reference.
+        const isCode = (importer: string) => !/\.html?(\?.*)?$/.test(importer);
+        keepClientReferences((moduleId) => {
+          const info = this.getModuleInfo(moduleId);
+          return !!info && [...info.importers, ...info.dynamicImporters].some(isCode);
+        });
       },
       transform: {
         order: "post",
@@ -531,6 +546,23 @@ export const createTransformerPlugin = (
           }
 
           const { code: transformed, map } = transformResult;
+
+          // The server build registered a client reference under this id;
+          // the end of the build checks the browser build wrote its file.
+          if (
+            isBuild &&
+            isServerEnvironment &&
+            typeof finalModuleID === "string" &&
+            transformed.includes(
+              runtimeResolvedUserOptions.loader?.registerClientReferenceName ??
+                "registerClientReference"
+            )
+          ) {
+            recordClientReference(id, {
+              source: id.replace(/^\0/, "").replace(/\?.*$/, ""),
+              id: finalModuleID,
+            });
+          }
 
           // Store the transformation result in per-environment cache
           const result = { code: transformed, map };

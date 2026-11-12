@@ -1329,6 +1329,21 @@ export type BuildConfig = {
         suffix?: string;
       };
   preserveModulesRoot?: boolean;
+  /**
+   * Once every environment is built, check that each client reference the
+   * server build registered names a file the browser build wrote, and fail
+   * the build when one does not. An id that is an absolute URL is never
+   * checked.
+   *
+   * - `true` (default): check every reference.
+   * - `false`: skip the check.
+   * - a function: called per reference with its `source` and `id`; return
+   *   `false` for one that is served from somewhere else on purpose.
+   * @default true
+   */
+  validateClientReferences?:
+    | boolean
+    | ((reference: { source: string; id: string }) => boolean);
   rscOutputPath?: string; // defaults: `index.rsc`
   htmlOutputPath?: string; // defaults: `index.html`
   entryFile?: (

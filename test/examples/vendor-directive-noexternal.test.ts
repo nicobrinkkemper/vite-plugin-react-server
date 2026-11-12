@@ -99,6 +99,14 @@ export function Page() {
         panicThreshold: "all_errors",
         verbose: false,
         clientPackages: [],
+        // The browser build inlines the package into the chunk of the client
+        // module that imports it and writes no file at the reference's own
+        // id. These tests pin the server and prerender side of that
+        // reference, so the browser-file check leaves it alone.
+        build: {
+          validateClientReferences: ({ source }: { source: string }) =>
+            !source.includes("/node_modules/"),
+        },
         siblingPlugins: [
           {
             name: "test:inline-plain-dep",
