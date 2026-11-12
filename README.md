@@ -166,6 +166,56 @@ The build writes both pages to `dist/static/`. Opening a page loads its HTML.
 Following the `About` link fetches `/about/index.rsc` and updates the page
 without reloading the document.
 
+### Check that it works
+
+Start the dev server:
+
+```bash
+npx vite
+```
+
+```
+  ➜  Local:   http://localhost:5173/
+  ➜  Pages render in the browser. Payload of /: http://localhost:5173/index.rsc
+```
+
+Open the local URL in a browser to see the page. In dev, the HTML at `/` is
+only the shell from `index.html`: the browser loads the payload and renders
+the page from it. To check the server without a browser, request the payload
+URL:
+
+```bash
+curl -si http://localhost:5173/index.rsc | grep -i content-type
+# Content-Type: text/x-component; charset=utf-8
+curl -s http://localhost:5173/index.rsc | grep -o "Hello from the server"
+# Hello from the server
+```
+
+Build the site:
+
+```bash
+npx vite build --app
+find dist/static -name "index.*"
+# dist/static/index.html
+# dist/static/index.rsc
+# dist/static/about/index.html
+# dist/static/about/index.rsc
+```
+
+Serve the build. `vite preview` serves `dist/static/`, and here the HTML is
+the prerendered page:
+
+```bash
+npx vite preview
+```
+
+```bash
+curl -s http://localhost:4173/ | grep -o "<h1>[^<]*</h1>"
+# <h1>Hello from the server</h1>
+curl -s http://localhost:4173/about/index.rsc
+# 0:[["$","h1",null,{"children":"About"}],null]
+```
+
 To use your own routing, omit `routes` and supply a `Page: (url) => string`
 mapping. See [Routing](./docs/routing.md) for that option, dynamic parameters,
 layouts, and loaders.
