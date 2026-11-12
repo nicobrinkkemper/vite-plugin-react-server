@@ -99,6 +99,34 @@ describe("vite preview serves the static build like a static host", () => {
     expect(await res.text()).toBe("0:about");
   });
 
+  // The payload URL names the flight file, so the Accept header does not
+  // decide: curl sends */*, an address bar asks for a document.
+  it("serves a payload URL as the payload for a client that accepts anything", async () => {
+    const res = await get("/about/index.rsc", "*/*");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/x-component");
+    expect(await res.text()).toBe("0:about");
+  });
+
+  it("serves the root payload URL as the payload for a client that accepts anything", async () => {
+    const res = await get("/index.rsc", "*/*");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/x-component");
+    expect(await res.text()).toBe("0:home");
+  });
+
+  it("serves a payload URL as the payload for a document request", async () => {
+    const res = await get("/about/index.rsc");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/x-component");
+    expect(await res.text()).toBe("0:about");
+  });
+
+  it("404s the payload URL of an unknown route for a client that accepts anything", async () => {
+    const res = await get("/nope/index.rsc", "*/*");
+    expect(res.status).toBe(404);
+  });
+
   it("404s the flight of an unknown route", async () => {
     const res = await get("/nope", "text/x-component");
     expect(res.status).toBe(404);
