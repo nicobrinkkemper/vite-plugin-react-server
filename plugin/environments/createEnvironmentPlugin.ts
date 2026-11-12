@@ -1,14 +1,12 @@
-import type { Plugin, UserConfig, ViteBuilder, ESBuildOptions } from "vite";
+import type { Plugin, UserConfig, ViteBuilder } from "vite";
 import { createRequire } from "node:module";
 import { realpathSync } from "node:fs";
 import { sep } from "node:path";
 
-// Minimal shape of Vite 8's `oxc` config. Imported from "vite" it would be
-// `OxcOptions`, but that type doesn't exist in Vite 6/7, so model it locally to
-// keep this source buildable against any supported Vite.
-type OxcLike = {
-  jsx?: ({ development?: boolean } & Record<string, unknown>) | string;
-} & Record<string, unknown>;
+import {
+  resolveJsxOverride,
+  type JsxOverrideInput,
+} from "./resolveJsxOverride.js";
 import { resolveClientBuildManifestPath } from "../config/clientBuildManifest.js";
 import type { ResolvedUserOptions, VitePluginFn } from "../types.js";
 
@@ -479,59 +477,16 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
         };
       }
 
-      // Force the PRODUCTION JSX transform for every build environment.
-      //
-      // Under a dev-mode build (`NODE_ENV=development … vite build --mode
-      // development`) esbuild's automatic-runtime JSX transform emits the
-      // dev call shape `jsxDEV(type, props, key, isStaticChildren, source,
-      // self)`. esbuild renders the trailing `self` argument as a bare
-      // `module` reference when it can't prove the file is ESM at
-      // per-file transform time. The vprs server bundle is pure ESM
-      // (`dist/server/*.js`), so at SSG-prerender time that `module`
-      // identifier is undefined and the very first server component to
-      // render (e.g. the built-in `Html` component) throws
-      // `ReferenceError: module is not defined`.
-      //
-      // The server bundle never consumes jsxDEV's client-warning
-      // `source`/`self` info, so dropping to the production transform
-      // (`jsx`/`jsxs`, no `self` arg) is a pure win for builds:
-      //   - It only changes the JSX *call shape*, NOT which React build is
-      //     bundled — `NODE_ENV=development` still resolves the development
-      //     (non-minified) React, so dev builds keep surfacing the errors
-      //     production minifies away.
-      //   - Production builds already use the production JSX transform
-      //     (esbuild only emits jsxDEV in dev), so this is a no-op there.
-      //   - Scoped to `command === "build"`, so the dev SERVER / client
-      //     Fast Refresh path (`command === "serve"`) is untouched.
-      // Vite 8 (Rolldown/Oxc) deprecates the `esbuild` config in favour of
-      // `oxc` and warns when a plugin sets it. The dev-JSX knob maps 1:1
-      // (esbuild.jsxDev -> oxc.jsx.development), so target whichever the
-      // installed Vite understands to keep the override AND stay warning-free.
-      const isOxcVite = parseInt(viteVersion.split(".")[0] ?? "0", 10) >= 8;
-      // `oxc` only exists on Vite 8 configs; read it without depending on Vite 8
-      // types so the source still builds on Vite 6/7.
-      const configOxc = (config as { oxc?: OxcLike | false }).oxc;
-      let esbuildJsxDevOverride: Partial<UserConfig> = {};
-      if (
-        configEnv.command === "build" &&
-        config.esbuild !== false &&
-        configOxc !== false
-      ) {
-        if (isOxcVite) {
-          const base: OxcLike =
-            typeof configOxc === "object" && configOxc ? configOxc : {};
-          const jsx =
-            typeof base.jsx === "object" && base.jsx ? base.jsx : {};
-          // `oxc` only exists on Vite 8's UserConfig; assert across versions.
-          esbuildJsxDevOverride = {
-            oxc: { ...base, jsx: { ...jsx, development: false } },
-          } as Partial<UserConfig>;
-        } else {
-          const base: ESBuildOptions =
-            typeof config.esbuild === "object" ? config.esbuild : {};
-          esbuildJsxDevOverride = { esbuild: { ...base, jsxDev: false } };
-        }
-      }
+      // JSX settings vprs adds on top of the user's: the automatic runtime
+      // by default on Vite 6/7, and the production transform for builds.
+      // `oxc` only exists on Vite 8 configs; read it without depending on
+      // Vite 8 types so the source still builds on Vite 6/7.
+      const jsxOverride = resolveJsxOverride({
+        viteMajor: parseInt(viteVersion.split(".")[0] ?? "0", 10),
+        command: configEnv.command,
+        esbuild: config.esbuild,
+        oxc: (config as { oxc?: JsxOverrideInput["oxc"] }).oxc,
+      });
 
       // Return the configuration with all environments
       // Build order: client → ssr → server → static generation (step 4)
@@ -540,7 +495,7 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
       return {
         root: userOptions.projectRoot,
         ...config,
-        ...esbuildJsxDevOverride,
+        ...jsxOverride,
         environments,
         builder: {
           async buildApp(builder: ViteBuilder) {
