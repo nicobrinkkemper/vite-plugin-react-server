@@ -3,6 +3,7 @@ import { glob, readFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { sourceHasTopLevelClientDirective } from "react-server-loader/directives";
+import { dependencyImportsOf } from "../../bundle/hostDependencyClientModules.js";
 
 const MODULE_SCRIPT_SRC =
   /<script\b[^>]*\btype=["']module["'][^>]*\bsrc=["']([^"']+)["']|<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*\btype=["']module["']/gi;
@@ -64,7 +65,14 @@ export function createDirectiveClientAutoDiscover(
      * it, so only the no-directive (server) case is tracked here.
      */
     serverImportsRouterClient: boolean;
+    /**
+     * What SERVER-side first-party files import from packages: per specifier,
+     * one file that imports it and every name imported (see
+     * hostDependencyClientModules).
+     */
+    serverDependencyImports: Record<string, { importer: string; names: string[] }>;
   }> {
+    const serverDependencyImports: Record<string, { importer: string; names: string[] }> = {};
     // Substring is enough: a server file that references this specifier imports
     // it. False positives just host an unused barrel (safe); the alternative,
     // a full import parse, isn't worth it at config time.
@@ -81,7 +89,7 @@ export function createDirectiveClientAutoDiscover(
     try {
       allFiles = glob(absolutePattern);
     } catch {
-      return { inputs, serverImportsRouterClient };
+      return { inputs, serverImportsRouterClient, serverDependencyImports };
     }
 
     for await (const file of allFiles) {
@@ -106,6 +114,9 @@ export function createDirectiveClientAutoDiscover(
         if (source.includes(ROUTER_CLIENT_SPECIFIER)) {
           serverImportsRouterClient = true;
         }
+        for (const [specifier, names] of Object.entries(dependencyImportsOf(source))) {
+          (serverDependencyImports[specifier] ??= { importer: file, names: [] }).names.push(...names);
+        }
         continue;
       }
 
@@ -120,6 +131,6 @@ export function createDirectiveClientAutoDiscover(
       }
     }
 
-    return { inputs, serverImportsRouterClient };
+    return { inputs, serverImportsRouterClient, serverDependencyImports };
   };
 }

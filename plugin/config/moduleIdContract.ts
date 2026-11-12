@@ -16,7 +16,7 @@ export type ModuleIDFn = (
   isClientByDirective?: boolean
 ) => string;
 
-const SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
+export const SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
 
 /**
  * Root a client-reference id: exactly one leading slash. Absolute URLs

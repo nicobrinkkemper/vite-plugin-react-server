@@ -2,7 +2,7 @@ import type { VitePluginFn } from "../../types.js";
 import { configureReactServer } from "./configureReactServer.client.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
-import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile, watchRouteTree, isRouteTreeAddOrRemove } from "./devPluginShared.js";
+import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile, watchRouteTree, isRouteTreeAddOrRemove, printPayloadUrlLine } from "./devPluginShared.js";
 import { getDevShellHeadProvider } from "./devShellHeadProvider.js";
 import { mergeDevShellHead } from "./devShellHead.js";
 import type { ConfigEnv } from "vite";
@@ -63,6 +63,7 @@ export const vitePluginReactDevServer: VitePluginFn = function _vitePluginReactS
       
       // Configure the React server for client environment (worker-based)
       // This uses the existing configureReactServer.client.js implementation
+      printPayloadUrlLine(server, userOptions.build.rscOutputPath);
       const autoDiscoveredFiles = emptyAutoDiscoveredFiles();
       watchRouteTree(server, {
         routeTree: userOptions.routeTree,

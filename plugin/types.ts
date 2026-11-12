@@ -164,6 +164,8 @@ export type AutoDiscoveredFiles = ResolvedBuildPages & {
   staticInputs: Record<string, string>;
   serverInputs: Record<string, string>;
   serverActions: Record<string, string>;
+  /** What first-party server modules import from packages, per specifier. */
+  serverDependencyImports?: Record<string, { importer: string; names: string[] }>;
 };
 
 // Input can be a string path, React component, tuple, or array

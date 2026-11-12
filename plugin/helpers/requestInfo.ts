@@ -69,6 +69,14 @@ export function requestInfo(
   const isCss = handlerOptions.autoDiscover.cssPattern.test(value);
   const isJson = handlerOptions.autoDiscover.jsonPattern.test(value);
   const isRsc = handlerOptions.autoDiscover.rscPattern.test(value);
+  // A payload URL (`/index.rsc`, `/about/index.rsc`) names the flight payload
+  // itself, so it is a flight request whatever the Accept header says: curl
+  // sends `*/*`, a bare HTTP client sends none, an address bar asks for a
+  // document. The route above has the payload file name stripped, so this
+  // reads the request path. A POST keeps its action classification.
+  const isRscPath =
+    req.method !== "POST" &&
+    handlerOptions.autoDiscover.rscPattern.test((req.url ?? "").split("?")[0]);
   const hasJsHeader =
     req.headers["sec-fetch-dest"] === "script" ||
     req.headers["accept"]?.includes("*/*") ||
@@ -109,12 +117,14 @@ export function requestInfo(
     !isHtml &&
     !isCss &&
     !isRsc &&
+    !isRscPath &&
     (isJS || hasJsHeader);
-  const isJsonRequest = isJson || (hasJsonHeader && !isJsRequest);
+  const isJsonRequest =
+    isJson || (hasJsonHeader && !isJsRequest && !isRscPath);
   // Form action detection
 
   const isHtmlRequest =
-    !hasRscQueryParam && (isHtml ||
+    !hasRscQueryParam && !isRscPath && (isHtml ||
     hasHtmlHeader ||
     (isFolder &&
       !hasRscHeader &&
@@ -122,7 +132,9 @@ export function requestInfo(
       !isJsRequest &&
       !isFormActionRequest));
   const isRscRequest =
-    hasRscQueryParam || (!isJsRequest && !isHtmlRequest && (isRsc || hasRscHeader));
+    hasRscQueryParam ||
+    isRscPath ||
+    (!isJsRequest && !isHtmlRequest && (isRsc || hasRscHeader));
   const isCssRequest =
     !isHtmlRequest &&
     !isRscRequest &&

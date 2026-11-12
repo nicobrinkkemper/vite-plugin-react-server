@@ -1,16 +1,21 @@
-import type { Plugin, UserConfig, ViteBuilder, ESBuildOptions } from "vite";
+import type { Plugin, UserConfig, ViteBuilder } from "vite";
 import { createRequire } from "node:module";
 import { realpathSync } from "node:fs";
-import { sep } from "node:path";
+import { resolve, sep } from "node:path";
 
-// Minimal shape of Vite 8's `oxc` config. Imported from "vite" it would be
-// `OxcOptions`, but that type doesn't exist in Vite 6/7, so model it locally to
-// keep this source buildable against any supported Vite.
-type OxcLike = {
-  jsx?: ({ development?: boolean } & Record<string, unknown>) | string;
-} & Record<string, unknown>;
-import { resolveClientBuildManifestPath } from "../config/clientBuildManifest.js";
-import type { ResolvedUserOptions, VitePluginFn } from "../types.js";
+import {
+  resolveJsxOverride,
+  type JsxOverrideInput,
+} from "./resolveJsxOverride.js";
+import {
+  createClientBuildManifestLookup,
+  resolveClientBuildManifestPath,
+} from "../config/clientBuildManifest.js";
+import {
+  takeClientReferences,
+  validateClientReferences,
+} from "../bundle/validateClientReferences.js";
+import type { AutoDiscoveredFiles, ResolvedUserOptions, VitePluginFn } from "../types.js";
 
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
@@ -57,6 +62,7 @@ import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
 import { REACT_CONDITION } from "../config/getCondition.js";
 import { runDeferredStaticGeneration } from "../bundle/deferredStaticGeneration.js";
 import { buildEdgeBundle } from "../bundle/buildEdgeBundle.js";
+import { hostDependencyClientModules } from "../bundle/hostDependencyClientModules.js";
 
 /**
  * Creates a plugin that ensures consistent hash generation across environments
@@ -78,6 +84,7 @@ import { buildEdgeBundle } from "../bundle/buildEdgeBundle.js";
  */
 export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
   let namingOptions: ResolvedUserOptions | undefined;
+  let serverDependencyImports: NonNullable<AutoDiscoveredFiles["serverDependencyImports"]> = {};
   const environmentPlugin: Plugin = {
     name: "vite:plugin-react-server/environments",
     enforce: "pre",
@@ -117,6 +124,13 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
           }
         }
       },
+    },
+
+    async buildStart() {
+      const name = this.environment.name;
+      if (!namingOptions || this.environment.config.command !== "build") return;
+      if (name !== "client" && name !== "ssr") return;
+      await hostDependencyClientModules(this, serverDependencyImports);
     },
 
     configResolved(config) {
@@ -195,6 +209,7 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
 
       // Get the auto-discovered files (safe to access since we checked for errors above)
       const autoDiscoveredFiles = autoDiscoverResult.autoDiscoveredFiles!;
+      serverDependencyImports = autoDiscoveredFiles.serverDependencyImports ?? {};
 
       // Define environment configurations
       const allEnvironmentConfigs = [
@@ -479,59 +494,16 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
         };
       }
 
-      // Force the PRODUCTION JSX transform for every build environment.
-      //
-      // Under a dev-mode build (`NODE_ENV=development … vite build --mode
-      // development`) esbuild's automatic-runtime JSX transform emits the
-      // dev call shape `jsxDEV(type, props, key, isStaticChildren, source,
-      // self)`. esbuild renders the trailing `self` argument as a bare
-      // `module` reference when it can't prove the file is ESM at
-      // per-file transform time. The vprs server bundle is pure ESM
-      // (`dist/server/*.js`), so at SSG-prerender time that `module`
-      // identifier is undefined and the very first server component to
-      // render (e.g. the built-in `Html` component) throws
-      // `ReferenceError: module is not defined`.
-      //
-      // The server bundle never consumes jsxDEV's client-warning
-      // `source`/`self` info, so dropping to the production transform
-      // (`jsx`/`jsxs`, no `self` arg) is a pure win for builds:
-      //   - It only changes the JSX *call shape*, NOT which React build is
-      //     bundled — `NODE_ENV=development` still resolves the development
-      //     (non-minified) React, so dev builds keep surfacing the errors
-      //     production minifies away.
-      //   - Production builds already use the production JSX transform
-      //     (esbuild only emits jsxDEV in dev), so this is a no-op there.
-      //   - Scoped to `command === "build"`, so the dev SERVER / client
-      //     Fast Refresh path (`command === "serve"`) is untouched.
-      // Vite 8 (Rolldown/Oxc) deprecates the `esbuild` config in favour of
-      // `oxc` and warns when a plugin sets it. The dev-JSX knob maps 1:1
-      // (esbuild.jsxDev -> oxc.jsx.development), so target whichever the
-      // installed Vite understands to keep the override AND stay warning-free.
-      const isOxcVite = parseInt(viteVersion.split(".")[0] ?? "0", 10) >= 8;
-      // `oxc` only exists on Vite 8 configs; read it without depending on Vite 8
-      // types so the source still builds on Vite 6/7.
-      const configOxc = (config as { oxc?: OxcLike | false }).oxc;
-      let esbuildJsxDevOverride: Partial<UserConfig> = {};
-      if (
-        configEnv.command === "build" &&
-        config.esbuild !== false &&
-        configOxc !== false
-      ) {
-        if (isOxcVite) {
-          const base: OxcLike =
-            typeof configOxc === "object" && configOxc ? configOxc : {};
-          const jsx =
-            typeof base.jsx === "object" && base.jsx ? base.jsx : {};
-          // `oxc` only exists on Vite 8's UserConfig; assert across versions.
-          esbuildJsxDevOverride = {
-            oxc: { ...base, jsx: { ...jsx, development: false } },
-          } as Partial<UserConfig>;
-        } else {
-          const base: ESBuildOptions =
-            typeof config.esbuild === "object" ? config.esbuild : {};
-          esbuildJsxDevOverride = { esbuild: { ...base, jsxDev: false } };
-        }
-      }
+      // JSX settings vprs adds on top of the user's: the automatic runtime
+      // by default on Vite 6/7, and the production transform for builds.
+      // `oxc` only exists on Vite 8 configs; read it without depending on
+      // Vite 8 types so the source still builds on Vite 6/7.
+      const jsxOverride = resolveJsxOverride({
+        viteMajor: parseInt(viteVersion.split(".")[0] ?? "0", 10),
+        command: configEnv.command,
+        esbuild: config.esbuild,
+        oxc: (config as { oxc?: JsxOverrideInput["oxc"] }).oxc,
+      });
 
       // Return the configuration with all environments
       // Build order: client → ssr → server → static generation (step 4)
@@ -540,14 +512,36 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
       return {
         root: userOptions.projectRoot,
         ...config,
-        ...esbuildJsxDevOverride,
+        ...jsxOverride,
         environments,
         builder: {
           async buildApp(builder: ViteBuilder) {
+            // References a build in this process recorded before failing.
+            takeClientReferences();
             // Build all environments in definition order
             for (const environment of Object.values(builder.environments)) {
               await builder.build(environment);
             }
+            // Every client reference the server build registered names a
+            // file the browser build wrote. Here, and not earlier: the client
+            // build's manifest and files are final.
+            const manifestPath = resolveClientBuildManifestPath(userOptions, builder.config);
+            validateClientReferences({
+              references: takeClientReferences(),
+              projectRoot: userOptions.projectRoot,
+              browserOutDir: resolve(
+                userOptions.projectRoot,
+                builder.environments["client"]?.config.build.outDir ??
+                  resolve(userOptions.build.outDir, userOptions.build.static)
+              ),
+              moduleBasePath: userOptions.moduleBasePath,
+              manifest: createClientBuildManifestLookup({
+                projectRoot: userOptions.projectRoot,
+                outDir: userOptions.build.outDir,
+                staticDir: userOptions.build.static,
+                getPath: () => manifestPath,
+              }),
+            });
             // Step 4: Run deferred static generation now that all manifests are available
             await runDeferredStaticGeneration();
             // Step 5: Single-isolate edge bake (additive, gated on build.edge).

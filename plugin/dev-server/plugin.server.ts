@@ -3,7 +3,7 @@ import { configureReactServer } from "./configureReactServer.server.js";
 import { resolveOptions } from "../config/resolveOptions.js";
 import { CSS_EXT } from "./collectRunnerCss.js";
 import type { Plugin, ViteDevServer } from "vite";
-import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile, watchRouteTree, isRouteTreeAddOrRemove } from "./devPluginShared.js";
+import { emptyAutoDiscoveredFiles, isClientModuleFile, devFlightTransportTags, clientOwnedCssModules, isServerGraphFile, watchRouteTree, isRouteTreeAddOrRemove, printPayloadUrlLine } from "./devPluginShared.js";
 import { getDevShellHeadProvider } from "./devShellHeadProvider.js";
 import { mergeDevShellHead } from "./devShellHead.js";
 import { NAMED_REACT_IMPORT_FILTER, rewriteReactNamedImports } from "./rewriteReactNamedImports.js";
@@ -162,6 +162,7 @@ applyToEnvironment(partialEnvironment: any) {
       
       // Configure the React server for server environment (direct RSC processing)
       // This uses the existing configureReactServer.server.js implementation
+      printPayloadUrlLine(server, userOptions.build.rscOutputPath);
       const autoDiscoveredFiles = emptyAutoDiscoveredFiles();
       watchRouteTree(server, {
         routeTree: userOptions.routeTree,
