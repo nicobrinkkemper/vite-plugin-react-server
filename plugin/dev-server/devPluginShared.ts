@@ -291,3 +291,37 @@ export function isRouteTreeAddOrRemove(
     routeTree.isRouteFile(ctx.file)
   );
 }
+
+/**
+ * Adds one line under the URLs Vite prints at startup. In dev `GET /` is the
+ * HTML shell and the page renders once the browser has loaded the payload, so
+ * a plain HTTP client (curl, a script, an agent) sees an empty document. The
+ * line says so and names the payload URL of the root route, which such a
+ * client can read instead.
+ */
+export function printPayloadUrlLine(
+  server: {
+    printUrls: () => void;
+    resolvedUrls: { local: string[]; network: string[] } | null;
+    config: {
+      base: string;
+      logger: { info: (message: string) => void };
+      customLogger?: { info: (message: string) => void };
+    };
+  },
+  rscOutputPath: string
+): void {
+  const printUrls = server.printUrls.bind(server);
+  server.printUrls = () => {
+    printUrls();
+    // Vite's resolved URLs end with the base, slash included.
+    const rootUrl =
+      server.resolvedUrls?.local[0] ??
+      server.resolvedUrls?.network[0] ??
+      server.config.base;
+    const logger = server.config.customLogger || server.config.logger;
+    logger.info(
+      `  \u279C  Pages render in the browser. Payload of /: ${rootUrl}${rscOutputPath}`
+    );
+  };
+}
