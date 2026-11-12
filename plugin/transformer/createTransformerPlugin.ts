@@ -267,6 +267,20 @@ export const createTransformerPlugin = (
           return false;
         });
       },
+      generateBundle(_options, bundle) {
+        const envName = this.environment?.name?.toLowerCase() || "";
+        if (!isBuild || !["server", "rsc", "react-server"].includes(envName)) return;
+        // A module the bundler dropped as unused (an export of a package
+        // barrel nobody imports) is in no chunk: the server cannot send it.
+        const rendered = new Set<string>();
+        for (const chunk of Object.values(bundle)) {
+          if (chunk.type !== "chunk") continue;
+          for (const [id, module] of Object.entries(chunk.modules)) {
+            if (module.renderedLength > 0) rendered.add(id);
+          }
+        }
+        keepClientReferences((moduleId) => rendered.has(moduleId));
+      },
       transform: {
         order: "post",
         // Only ids matching modulePattern ever reach the work below (see the

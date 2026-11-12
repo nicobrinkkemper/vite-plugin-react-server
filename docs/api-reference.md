@@ -60,7 +60,6 @@ export const config = {
 | `static` | `string` | Static output directory | `"static"` |
 | `hash` | `string` | Hash for client files | `"hash"` |
 | `preserveModulesRoot` | `boolean` | When `true`, preserves the `moduleBase` directory (e.g. `src/`) in output paths. When `false`, strips it from output paths. | `false` |
-| `validateClientReferences` | `boolean \| ((reference: { source: string; id: string }) => boolean)` | Once every environment is built, fail when a client reference the server build registered names no file in the browser build. `false` skips the check; a function returns `false` for a reference served from somewhere else on purpose. See [Configuration](./configuration.md#validateclientreferences). | `true` |
 | `renderMode` | `"parallel" \| "sequential"` | How SSG renders pages: concurrent batches, or one at a time (less memory, deterministic order) | `"parallel"` |
 | `batchSize` | `number` | Pages rendered concurrently when `renderMode` is `"parallel"` | `8` |
 | `inlineFlight` | `boolean \| "blob" \| "stream"` | How the flight payload rides inside the HTML. `"blob"` (alias `true`): buffer and inline it into each prerendered route's `index.html` as one non-executable `<script id="vprs-flight">` at the post-SSG point, in both build modes — static/CDN targets, simplest client. `"stream"`: interleave it into the HTML **as it streams** on per-request document renders — dynamic/edge targets, TTFB is the shell flush; prerendered pages have no streamed form — under `transport: "webpack"` the SSG freeze emits them with the blob form instead, under the esm pass they fall back to fetching `index.rsc`. `false`: no inlining, the client always fetches `.rsc`. See [Build Output](./build-output.md). | `false` |
@@ -208,9 +207,6 @@ interface BuildConfig {
   rscOutputPath?: string; // Default: "index.rsc"
   htmlOutputPath?: string; // Default: "index.html"
   preserveModulesRoot?: boolean;
-  validateClientReferences?:
-    | boolean
-    | ((reference: { source: string; id: string }) => boolean);
   hash?: string;
   edge?: EdgeBuildConfig;
 }

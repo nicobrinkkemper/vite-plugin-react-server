@@ -17,7 +17,7 @@ import {
   takeClientReferences,
   validateClientReferences,
 } from "../bundle/validateClientReferences.js";
-import type { ResolvedUserOptions, VitePluginFn } from "../types.js";
+import type { AutoDiscoveredFiles, ResolvedUserOptions, VitePluginFn } from "../types.js";
 
 import { resolveAutoDiscover } from "../config/autoDiscover/resolveAutoDiscover.js";
 import { resolveUserConfig } from "../config/resolveUserConfig.js";
@@ -64,6 +64,7 @@ import { DEFAULT_LOADER_CONFIG } from "../config/defaults.js";
 import { REACT_CONDITION } from "../config/getCondition.js";
 import { runDeferredStaticGeneration } from "../bundle/deferredStaticGeneration.js";
 import { buildEdgeBundle } from "../bundle/buildEdgeBundle.js";
+import { hostDependencyClientModules } from "../bundle/hostDependencyClientModules.js";
 
 /**
  * Creates a plugin that ensures consistent hash generation across environments
@@ -85,6 +86,7 @@ import { buildEdgeBundle } from "../bundle/buildEdgeBundle.js";
  */
 export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
   let namingOptions: ResolvedUserOptions | undefined;
+  let serverDependencyImports: NonNullable<AutoDiscoveredFiles["serverDependencyImports"]> = {};
   const environmentPlugin: Plugin = {
     name: "vite:plugin-react-server/environments",
     enforce: "pre",
@@ -124,6 +126,13 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
           }
         }
       },
+    },
+
+    async buildStart() {
+      const name = this.environment.name;
+      if (!namingOptions || this.environment.config.command !== "build") return;
+      if (name !== "client" && name !== "ssr") return;
+      await hostDependencyClientModules(this, serverDependencyImports);
     },
 
     configResolved(config) {
@@ -202,6 +211,7 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
 
       // Get the auto-discovered files (safe to access since we checked for errors above)
       const autoDiscoveredFiles = autoDiscoverResult.autoDiscoveredFiles!;
+      serverDependencyImports = autoDiscoveredFiles.serverDependencyImports ?? {};
 
       // Define environment configurations
       const allEnvironmentConfigs = [
@@ -576,7 +586,6 @@ export const createEnvironmentPlugin: VitePluginFn = (options): Plugin => {
                 staticDir: userOptions.build.static,
                 getPath: () => manifestPath,
               }),
-              policy: userOptions.build.validateClientReferences,
             });
             // Step 4: Run deferred static generation now that all manifests are available
             await runDeferredStaticGeneration();

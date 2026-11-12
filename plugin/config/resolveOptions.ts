@@ -904,9 +904,6 @@ export const resolveOptions: ResolveOptionsFn = function _resolveOptions(
     preserveModulesRoot:
       options.build?.preserveModulesRoot ??
       DEFAULT_CONFIG.BUILD.preserveModulesRoot,
-    validateClientReferences:
-      options.build?.validateClientReferences ??
-      DEFAULT_CONFIG.BUILD.validateClientReferences,
     outDir: options.build?.outDir ?? DEFAULT_CONFIG.BUILD.outDir,
     hash: options.build?.hash ?? DEFAULT_CONFIG.BUILD.hash,
     extensionMap: {

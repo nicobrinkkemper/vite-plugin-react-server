@@ -14,8 +14,8 @@ import { inlineImportIds } from "../rsc-stream.js";
  * The default `vendorPattern` skips dependency modules, but only the ones
  * without a directive. This module must still become a client reference in
  * the server build; executing it under `react-server` instead would throw on
- * `useState`. A first-party client module imports it too, which is what hosts
- * its chunk in the client build for the html-worker to resolve.
+ * `useState`. Server code imports it, so the client build gives it a file of
+ * its own for the reference to name.
  */
 describe("Dependency with a directive, inlined by noExternal, not a client package", () => {
   let buildResult: SharedBuildResult;
@@ -99,14 +99,6 @@ export function Page() {
         panicThreshold: "all_errors",
         verbose: false,
         clientPackages: [],
-        // The browser build inlines the package into the chunk of the client
-        // module that imports it and writes no file at the reference's own
-        // id. These tests pin the server and prerender side of that
-        // reference, so the browser-file check leaves it alone.
-        build: {
-          validateClientReferences: ({ source }: { source: string }) =>
-            !source.includes("/node_modules/"),
-        },
         siblingPlugins: [
           {
             name: "test:inline-plain-dep",
@@ -135,7 +127,12 @@ export function Page() {
         .map(([, content]) => content)
         .join("\n")
     );
-    expect(rscContent).toContain('I["/node_modules/plain-dep/index.js","Counter"]');
+    // The id names the file the browser build wrote for the module.
+    const id = rscContent.match(/I\["(\/assets\/plain-dep-[\w-]+\.js)","Counter"\]/)?.[1];
+    expect(id).toBeDefined();
+    expect(
+      buildResult.staticChunks().some(([file]) => file.endsWith(id!.slice(1)))
+    ).toBe(true);
   });
 
   it("prerenders both usages of the component", () => {

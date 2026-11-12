@@ -87,11 +87,9 @@ export const toolbarLabel = (name) => "plain-dep:" + name;
 `
           );
 
-          // First-party client module importing the package: this is what
-          // pulls fake-ui into the CLIENT build graph so its directive module
-          // is emitted (hosted) under dist/*/node_modules/fake-ui/. Without
-          // any client-side importer the server-recorded reference dangles at
-          // SSG render (ERR_MODULE_NOT_FOUND).
+          // A first-party client module imports the package too: the browser
+          // build must still write the package's module as a file of its
+          // own, not only inline it into this module's chunk.
           await mkdir(resolve(testDir, "src/components"), { recursive: true });
           await writeFile(
             resolve(testDir, "src/components/Toolbar.client.tsx"),
@@ -134,14 +132,6 @@ export function Page() {
         panicThreshold: "all_errors",
         verbose: false,
         clientPackages: ["fake-ui"],
-        // The browser build inlines the package into the chunk of the client
-        // module that imports it and writes no file at the reference's own
-        // id. These tests pin the server and prerender side of that
-        // reference, so the browser-file check leaves it alone.
-        build: {
-          validateClientReferences: ({ source }: { source: string }) =>
-            !source.includes("/node_modules/"),
-        },
       }
     );
   }, 30000);
@@ -193,86 +183,4 @@ export function Page() {
       clientLike.some(([, code]) => /FancyButton/.test(code))
     ).toBe(true);
   });
-});
-
-describe("Client package with no client-side importer", () => {
-  it("fails the build: the reference's module is never hosted", async () => {
-    // Same package, but ONLY a server component imports it — nothing pulls
-    // fake-ui into the client graph, so the client build never emits
-    // node_modules/fake-ui/index.js. The build fails either way: on the
-    // browser-file check, or, when the server build prerenders first (under
-    // the react-server condition), on the html-worker's import of the client
-    // reference. This pins the reachability rule the docs state;
-    // if hosting ever becomes reference-driven for third-party packages
-    // (as it already is for vprs's own router barrel), this expectation
-    // should flip.
-    await expect(
-      getSharedBuild(
-        "client-package-dangling-reference",
-        "client-package-dangling-reference",
-        {
-          setupProject: async (testDir: string) => {
-            await setupIndexHTML(testDir);
-            await mkdir(resolve(testDir, "src/page"), { recursive: true });
-
-            const pkg = resolve(testDir, "node_modules", "fake-ui");
-            await mkdir(pkg, { recursive: true });
-            await writeFile(
-              resolve(pkg, "package.json"),
-              JSON.stringify({
-                name: "fake-ui",
-                version: "1.0.0",
-                type: "module",
-                main: "index.js",
-                exports: { ".": "./index.js" },
-                peerDependencies: { react: "*" },
-              })
-            );
-            await writeFile(
-              resolve(pkg, "index.js"),
-              `"use client";
-import React from "react";
-
-export function FancyButton({ label }) {
-  const [count, setCount] = React.useState(0);
-  return React.createElement(
-    "button",
-    { onClick: () => setCount(count + 1) },
-    label,
-    " ",
-    count
-  );
-}
-`
-            );
-
-            await writeFile(
-              resolve(testDir, "src/page/page.tsx"),
-              `import React from "react";
-import { FancyButton } from "fake-ui";
-
-export function Page() {
-  return (
-    <div>
-      <h1>Dangling Reference Test</h1>
-      <FancyButton label="press" />
-    </div>
-  );
-}
-`
-            );
-
-            await writeFile(
-              resolve(testDir, "src/page/props.ts"),
-              `export const props = (url: string) => ({ url });`
-            );
-          },
-          pages: ["/"],
-          panicThreshold: "all_errors",
-          verbose: false,
-          clientPackages: ["fake-ui"],
-        }
-      )
-    ).rejects.toThrow(/fake-ui/);
-  }, 30000);
 });

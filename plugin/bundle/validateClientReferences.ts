@@ -23,15 +23,6 @@ export type ClientReference = {
   id: string;
 };
 
-/**
- * `build.validateClientReferences`: `false` skips the check; a function
- * decides per reference, returning `false` for one that is served from
- * somewhere else on purpose.
- */
-export type ClientReferencePolicy =
-  | boolean
-  | ((reference: ClientReference) => boolean);
-
 // Keyed by the bundler's id for the module, which is what its graph answers to.
 const recorded = new Map<string, ClientReference>();
 
@@ -42,8 +33,9 @@ export function recordClientReference(moduleId: string, reference: ClientReferen
 
 /**
  * Keep only the references the server can send. The server build turns every
- * client module it is given into a reference, the browser entry included, but
- * only one that server code imports can reach a flight payload.
+ * client module it is given into a reference, the browser entry and every
+ * module of a package barrel included, but only one that server code imports
+ * and the bundle keeps can reach a flight payload.
  */
 export function keepClientReferences(isRequired: (moduleId: string) => boolean): void {
   for (const moduleId of recorded.keys()) {
@@ -87,18 +79,14 @@ export function findMissingClientReferences({
   browserOutDir,
   moduleBasePath,
   manifest,
-  policy = true,
 }: {
   references: ClientReference[];
   browserOutDir: string;
   moduleBasePath: string;
   manifest: Pick<ClientBuildManifestLookup, "fileOf">;
-  policy?: ClientReferencePolicy;
 }): MissingClientReference[] {
-  if (policy === false) return [];
   const missing: MissingClientReference[] = [];
   for (const reference of references) {
-    if (typeof policy === "function" && policy(reference) === false) continue;
     const files = browserFilesOfId(reference.id, moduleBasePath);
     if (!files) continue;
     if (files.some((file) => existsSync(join(browserOutDir, file)))) continue;
@@ -135,9 +123,7 @@ export function missingClientReferencesError(
       `no file in the browser build, so the browser could not load ${missing.length === 1 ? "it" : "them"}:\n` +
       lines.join("\n") +
       `\nThe client build names these files and writes them before the server build runs. ` +
-      `Check that the module is part of the client build and that nothing removes or renames its output. ` +
-      `A reference that is served from somewhere else on purpose is exempted with ` +
-      `build.validateClientReferences: (reference) => false for that reference.`
+      `Check that the module is part of the client build and that nothing removes or renames its output.`
   );
 }
 
@@ -148,7 +134,6 @@ export function validateClientReferences(options: {
   browserOutDir: string;
   moduleBasePath: string;
   manifest: Pick<ClientBuildManifestLookup, "fileOf" | "path">;
-  policy?: ClientReferencePolicy;
 }): void {
   const missing = findMissingClientReferences(options);
   if (missing.length > 0) {

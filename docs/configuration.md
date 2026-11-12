@@ -53,7 +53,6 @@ export default defineConfig({
       static: "static",
       hash: "hash",
       preserveModulesRoot: false,      // keep src/ in output paths
-      validateClientReferences: true,  // fail when a client reference has no browser file
       renderMode: "parallel",          // "parallel" | "sequential"
       batchSize: 8,                    // pages per batch in parallel mode
       rscOutputPath: "index.rsc",
@@ -199,9 +198,9 @@ flag cannot be added retroactively):
 
 ## Third-party `"use client"` packages
 
-Libraries like Chakra UI, MUI, Mantine, react-aria, and framer-motion ship per-file `"use client"` directives in their compiled output. vprs picks them up automatically: the server build converts each directive module into a client reference instead of executing it under the `react-server` condition, so server components can import the package's components directly — provided the package is also reachable from the client graph. The client build only hosts package modules that some first-party `"use client"` module imports (commonly the provider wrapper); a reference with no client-side importer has no file to load, and the build fails on it: on the [`validateClientReferences`](#validateclientreferences) check, or with `ERR_MODULE_NOT_FOUND` when a prerender imports it first. See the README's "Third-party client-component packages" section for the usage rules.
+Libraries like Chakra UI, MUI, Mantine, react-aria, and framer-motion ship per-file `"use client"` directives in their compiled output. vprs picks them up automatically: the server build converts each directive module into a client reference instead of executing it under the `react-server` condition, so server components can import the package's components directly. The client build gives each such module a file of its own, whether or not a first-party client module imports it too, and the reference names that file. See the README's "Third-party client-component packages" section for the usage rules.
 
-Detection runs once at config-time via [`vitefu.crawlFrameworkPkgs`](https://github.com/svitejs/vitefu): any package with `react` in `peerDependencies` is added to the bundle's `noExternal` list and has its directives preserved through esbuild's pre-bundle (`optimizeDeps.exclude`); client-graph-reachable `"use client"` modules are emitted as their own client chunks so the html-worker can resolve client references at SSG render time.
+Detection runs once at config-time via [`vitefu.crawlFrameworkPkgs`](https://github.com/svitejs/vitefu): any package with `react` in `peerDependencies` is added to the bundle's `noExternal` list and has its directives preserved through esbuild's pre-bundle (`optimizeDeps.exclude`); `"use client"` modules that server code imports are emitted as their own client chunks, for the browser and for the html-worker at SSG render time. The client build finds them by name: each name a server module imports from a package is followed through the package's re-exports to the module that holds it. A namespace import (`import * as ui from "pkg"`) names nothing to follow, so a component reached that way is not hosted and the [client reference check](#client-reference-check) fails the build; import the names instead.
 
 | Option | Type | Default | Purpose |
 |--------|------|---------|---------|
@@ -222,28 +221,16 @@ vitePluginReactServer({
 
 If detection fails (missing lockfile, monorepo edge), the build continues with whatever's in `clientPackages` — and emits a warning if `verbose: true`.
 
-## `validateClientReferences`
+## Client reference check
 
-The server build bakes each client reference's id into the flight payload, and the browser imports `moduleBaseURL + id`. Once every environment is built, the build checks every client module that a server entry imports, directly or through other modules: its id must name a file the client build wrote. The build fails when one does not:
+The server build bakes each client reference's id into the flight payload, and the browser imports `moduleBaseURL + id`. Once every environment is built, the build checks every client module that a server entry imports, directly or through other modules, and that the server bundle kept: its id must name a file the client build wrote. The build fails when one does not:
 
 ```
 [vite-plugin-react-server] A client reference has no file in the browser build, so the browser could not load it:
   - src/components/Link.client.tsx is referenced as /assets/components/Link.client.js, but dist/static/assets/components/Link.client.js does not exist: dist/static/.vite/manifest.json has no entry for it.
 ```
 
-An id that is an absolute URL (`https://…`, `//…`) is never checked.
-
-| Value | Behavior |
-|-------|----------|
-| `true` (default) | Check every reference. |
-| `false` | Skip the check. |
-| `(reference) => boolean` | Called with `{ source, id }` per reference. Return `false` for one that is served from somewhere else on purpose. |
-
-```ts
-build: {
-  validateClientReferences: ({ id }) => !id.startsWith("/remote/"),
-}
-```
+An id that is an absolute URL (`https://…`, `//…`) is never checked: that is how a reference served from somewhere else on purpose is written.
 
 ## `preserveModulesRoot`
 

@@ -10,7 +10,6 @@ import {
   takeClientReferences,
   validateClientReferences,
   type ClientReference,
-  type ClientReferencePolicy,
 } from "../../plugin/bundle/validateClientReferences.js";
 
 describe("validateClientReferences", () => {
@@ -47,8 +46,7 @@ describe("validateClientReferences", () => {
     {
       manifestPath = join(root, "dist/static/.vite/manifest.json"),
       moduleBasePath = "/",
-      policy,
-    }: { manifestPath?: string; moduleBasePath?: string; policy?: ClientReferencePolicy } = {}
+    }: { manifestPath?: string; moduleBasePath?: string } = {}
   ) {
     validateClientReferences({
       references,
@@ -61,7 +59,6 @@ describe("validateClientReferences", () => {
         staticDir: "static",
         getPath: () => manifestPath,
       }),
-      policy,
     });
   }
 
@@ -116,21 +113,6 @@ describe("validateClientReferences", () => {
         { source: join(root, "src/Card.client.tsx"), id: "//cdn.example.com/Card.js" },
       ])
     ).not.toThrow();
-  });
-
-  it("exempts the references the policy function returns false for", () => {
-    const references = [
-      { source: source(), id: "/remote/Button.js" },
-      { source: join(root, "src/Card.client.tsx"), id: "/Card.client.js" },
-    ];
-    expect(() =>
-      validate(references, { policy: ({ id }) => !id.startsWith("/remote/") })
-    ).toThrow(/src\/Card\.client\.tsx is referenced as \/Card\.client\.js/);
-    expect(() =>
-      validate(references, { policy: ({ id }) => !id.startsWith("/remote/") })
-    ).not.toThrow(/Button/);
-    expect(() => validate(references, { policy: () => false })).not.toThrow();
-    expect(() => validate(references, { policy: false })).not.toThrow();
   });
 
   it("names the source, the id and the manifest when the manifest has no entry", () => {

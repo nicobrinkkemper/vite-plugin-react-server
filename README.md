@@ -259,19 +259,14 @@ boundaries so the server build creates client references. Executing those
 modules as server components would fail when they call APIs such as
 `createContext` or `useState`.
 
-Two things can go wrong here:
+A server component can import the package's components directly, by name. The
+client build gives each `"use client"` module those names come from a file of
+its own, and the client reference names that file.
 
-- A server component refers to a package module that the client build never
-  emitted. This causes `ERR_MODULE_NOT_FOUND` during rendering. Import the
-  package from one of your own `"use client"` modules so the client build
-  includes it.
-- A provider takes configuration that can't cross the RSC boundary. Chakra's
-  system object, for example, contains functions. Put the provider in a
-  `"use client"` wrapper and create or import its configuration there.
-
-A provider wrapper usually takes care of both. It imports the package into
-the client build and keeps the configuration inside the client boundary.
-Server components can then import the package's components directly. Chakra's
+A provider that takes configuration that can't cross the RSC boundary still
+needs a wrapper. Chakra's system object, for example, contains functions. Put
+the provider in a `"use client"` module of your own and create or import its
+configuration there. Chakra's
 [App Router guide](https://chakra-ui.com/docs/get-started/frameworks/next-app)
 includes such a wrapper.
 

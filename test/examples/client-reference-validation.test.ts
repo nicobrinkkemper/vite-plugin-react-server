@@ -37,14 +37,8 @@ describe("client references are checked against the browser build", () => {
     if (root) await rm(root, { recursive: true, force: true });
   });
 
-  const build = (
-    plugin: Plugin,
-    validateClientReferences?: boolean | ((reference: { source: string; id: string }) => boolean)
-  ) =>
-    doBuild(
-      { projectRoot: root, build: { pages: [], edge: false, validateClientReferences } },
-      [plugin]
-    );
+  const build = (plugin: Plugin) =>
+    doBuild({ projectRoot: root, build: { pages: [], edge: false } }, [plugin]);
 
   const removeBrowserFile = afterBrowserBuild(async (manifestPath) => {
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
@@ -76,18 +70,5 @@ describe("client references are checked against the browser build", () => {
     await expect(build(dropManifestEntry)).rejects.toThrow(
       /src\/components\/Link\.client\.tsx is referenced as \S+, but dist\/static\/\S+ does not exist: dist\/static\/\.vite\/manifest\.json has no entry for it\./
     );
-  });
-
-  it("leaves a reference the policy exempts alone", async () => {
-    const seen: string[] = [];
-    await build(removeBrowserFile, (reference) => {
-      seen.push(reference.source);
-      return !reference.source.endsWith("Link.client.tsx");
-    });
-    expect(seen.some((source) => source.endsWith(SOURCE))).toBe(true);
-  });
-
-  it("does not check when validateClientReferences is false", async () => {
-    await build(removeBrowserFile, false);
   });
 });
