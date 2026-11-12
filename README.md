@@ -23,17 +23,33 @@ npm install
 npm run dev      # Start the Vite dev server
 npm run build    # Build the static site and server modules
 npm run preview  # Serve dist/static
-npm run edge     # Render pages on request at :4401
+npm run edge     # Build, then render pages on request at :4401
 ```
 
-Deploy `dist/static/` as-is for a static site. The starter also includes
-`api/`, `vercel.json`, and `scripts/prepare-vercel.mjs` for rendering on
-request with Vercel. If you don't need Vercel, change the `edge` script to
-call `build` instead of `build:vercel`, then remove them.
+These are scripts in the starter's `package.json`, not commands of this
+package. `edge` runs the starter's own
+[`edge-server.mjs`](https://github.com/nicobrinkkemper/vprs-starter/blob/main/edge-server.mjs),
+a small Node server around the built handler. Deploy `dist/static/` as-is for
+a static site. The starter also includes `api/`, `vercel.json`, and
+`scripts/prepare-vercel.mjs` for rendering on request with Vercel. If you
+don't need Vercel, change the `edge` script to call `build` instead of
+`build:vercel`, then remove them.
+
+To start from an empty folder instead, follow the next two sections: they are
+a complete app, file by file.
 
 ## Install
 
-To add vprs to your own project:
+Create a `package.json`:
+
+```json
+{
+  "private": true,
+  "type": "module"
+}
+```
+
+Then install:
 
 ```bash
 npm install -D vite vite-plugin-react-server react react-dom react-server-loader
@@ -47,12 +63,35 @@ Node.js 22+ and Vite `^6.3.5`, `^7`, or `^8`. Stable React is supported with
 
 ## Minimal example
 
-This example uses the [file-based router](./docs/routing.md): pages come from
-a folder. [Getting Started](./docs/getting-started.md#start-from-scratch)
-builds the same kind of app in manual mode instead, mapping URLs to `Page` and
-`props` files in the config.
+The files below, with the `package.json` above, are the whole app.
+[examples/hello-world](./examples/hello-world) is a smaller one with the same
+setup: a single page and no client component.
 
-Set `"type": "module"` in `package.json`. Then add the plugin:
+It uses the [file-based router](./docs/routing.md): pages come from a folder.
+[Getting Started](./docs/getting-started.md#start-from-scratch) builds the
+same kind of app in manual mode instead, mapping URLs to `Page` and `props`
+files in the config.
+
+Add a `tsconfig.json`. `vite/client` types `import.meta.env`, and the second
+entry types the plugin's virtual modules:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["vite/client", "vite-plugin-react-server/virtual"]
+  },
+  "include": ["src", "vite.config.ts"]
+}
+```
+
+Add the plugin:
 
 ```ts
 // vite.config.ts
@@ -143,10 +182,17 @@ Vite needs an `index.html` that loads the entry:
 
 ```html
 <!-- index.html -->
-<body>
-  <div id="root"></div>
-  <script type="module" src="/src/client.tsx"></script>
-</body>
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Hello World — vite-plugin-react-server</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/client.tsx"></script>
+  </body>
+</html>
 ```
 
 This file is Vite's entry point, not the shell of your pages. Prerendered
@@ -155,20 +201,15 @@ set the `Html` option), and the build writes them over the copy of
 `index.html` in `dist/static/`. See
 [Build Output](./docs/build-output.md#diststatic--deploy-this).
 
-Now run the dev server or build the site:
-
-```bash
-npx vite
-npx vite build --app
-```
-
-The build writes both pages to `dist/static/`. Opening a page loads its HTML.
-Following the `About` link fetches `/about/index.rsc` and updates the page
-without reloading the document.
-
 ### Check that it works
 
-Start the dev server:
+Check the types:
+
+```bash
+npx tsc --noEmit
+```
+
+It prints nothing. Start the dev server:
 
 ```bash
 npx vite
@@ -176,6 +217,7 @@ npx vite
 
 ```
   ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
   ➜  Pages render in the browser. Payload of /: http://localhost:5173/index.rsc
 ```
 
@@ -187,7 +229,7 @@ URL:
 ```bash
 curl -si http://localhost:5173/index.rsc | grep -i content-type
 # Content-Type: text/x-component; charset=utf-8
-curl -s http://localhost:5173/index.rsc | grep -o "Hello from the server"
+curl -s http://localhost:5173/index.rsc | grep -o "Hello from the server" | head -1
 # Hello from the server
 ```
 
@@ -195,11 +237,11 @@ Build the site:
 
 ```bash
 npx vite build --app
-find dist/static -name "index.*"
-# dist/static/index.html
-# dist/static/index.rsc
+find dist/static -name "index.*" | sort
 # dist/static/about/index.html
 # dist/static/about/index.rsc
+# dist/static/index.html
+# dist/static/index.rsc
 ```
 
 Serve the build. `vite preview` serves `dist/static/`, and here the HTML is
@@ -215,6 +257,9 @@ curl -s http://localhost:4173/ | grep -o "<h1>[^<]*</h1>"
 curl -s http://localhost:4173/about/index.rsc
 # 0:[["$","h1",null,{"children":"About"}],null]
 ```
+
+Opening a page loads its HTML. Following the `About` link fetches
+`/about/index.rsc` and updates the page without reloading the document.
 
 To use your own routing, omit `routes` and supply a `Page: (url) => string`
 mapping. See [Routing](./docs/routing.md) for that option, dynamic parameters,
@@ -352,15 +397,9 @@ directive warnings. See [Storybook](./docs/storybook.md) for details.
 
 ## TypeScript
 
-Include the Vite and vprs virtual-module types in your TypeScript config:
-
-```json
-{
-  "compilerOptions": {
-    "types": ["vite/client", "vite-plugin-react-server/virtual"]
-  }
-}
-```
+Put `"types": ["vite/client", "vite-plugin-react-server/virtual"]` in your
+TypeScript config, as the [minimal example](#minimal-example)'s `tsconfig.json`
+does. Without `vite/client`, `tsc` rejects `import.meta.env`.
 
 ## React versions
 
