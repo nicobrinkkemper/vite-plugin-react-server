@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,7 +50,11 @@ describe("README minimal example", () => {
     const files = await readExampleFiles();
     expect([...files.keys()]).toEqual(EXAMPLE_FILES);
 
-    projectDir = await mkdtemp(join(tmpdir(), "vprs-readme-minimal-"));
+    // Real path: macOS's temp directory is a symlink, and the plugin reads
+    // the project root off the path Vite was started from.
+    projectDir = await realpath(
+      await mkdtemp(join(tmpdir(), "vprs-readme-minimal-"))
+    );
     for (const [path, body] of files) {
       await mkdir(dirname(join(projectDir, path)), { recursive: true });
       await writeFile(join(projectDir, path), body);
