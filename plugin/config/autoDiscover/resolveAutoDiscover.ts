@@ -142,8 +142,11 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
       inputs: {},
       userOptions,
     });
-    const { inputs: directiveClientInputs, serverImportsRouterClient } =
-      await directiveClientFiles({
+    const {
+      inputs: directiveClientInputs,
+      serverImportsRouterClient,
+      serverDependencyImports,
+    } = await directiveClientFiles({
         inputs: {},
         userOptions,
       });
@@ -320,6 +323,7 @@ export const resolveAutoDiscover: ResolveAutoDiscoverFn =
         clientInputs: clientInputsCollection,
         serverInputs: serverInputsCollection,
         serverActions,
+        serverDependencyImports,
       },
     };
   };
