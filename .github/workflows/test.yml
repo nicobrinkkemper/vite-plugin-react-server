@@ -232,6 +232,91 @@ jobs:
         working-directory: demo
         run: npm run test:e2e
 
+  # The release gate from docs/releasing.md step 1d: this repo's own
+  # `npx playwright test` (test/e2e) against the demo's DEV servers. The `e2e`
+  # job above runs the demo's suite against its production server; this one
+  # covers what only dev has: both dev conditions, hydration and client
+  # navigation, client-imported server functions, CSS and React HMR, server
+  # action persistence. It ran only on a maintainer's machine before, so it
+  # could go red without anyone seeing it.
+  #
+  # Same layout as the release procedure: the plugin and the demo are sibling
+  # directories, and the demo gets the packed tarball (not a file: link, which
+  # would lend the demo this repo's React). `--no-save` keeps the demo's
+  # package.json and lockfile untouched, so the last step can require a clean
+  # tree: the specs write fixtures into the demo's src/ and must restore
+  # every one of them.
+  dev-browser-gate:
+    name: dev browser gate (test/e2e against the demo's dev servers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      BIDOOF_TEMPLATE: ${{ github.workspace }}/bidoof-template
+    steps:
+      - name: Checkout the plugin
+        uses: actions/checkout@v6
+        with:
+          path: vite-plugin-react-server
+
+      - name: Checkout the demo app
+        uses: actions/checkout@v6
+        with:
+          repository: nicobrinkkemper/vite-plugin-react-server-demo-official
+          path: bidoof-template
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: vite-plugin-react-server/.nvmrc
+          cache: npm
+          cache-dependency-path: vite-plugin-react-server/package-lock.json
+
+      - name: Build + pack the plugin (the bytes a consumer installs)
+        working-directory: vite-plugin-react-server
+        run: |
+          npm ci
+          npm run build
+          npm pack
+
+      - name: Install the demo against THIS build of the plugin
+        working-directory: bidoof-template
+        run: |
+          npm ci
+          npm install --no-save ../vite-plugin-react-server/vite-plugin-react-server-*.tgz
+          # npm keeps the published copy when the install does not land, and
+          # the gate would then pass against the wrong code.
+          want="$(node -p "require('../vite-plugin-react-server/package.json').version")"
+          got="$(node -p "require('./node_modules/vite-plugin-react-server/package.json').version")"
+          test -f node_modules/vite-plugin-react-server/package.json
+          test ! -L node_modules/vite-plugin-react-server
+          test "$got" = "$want"
+
+      - name: Resolve Playwright version (cache key)
+        id: playwright-version
+        working-directory: vite-plugin-react-server
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Chromium
+        working-directory: vite-plugin-react-server
+        timeout-minutes: 20
+        run: npx playwright install --with-deps chromium
+
+      - name: Dev browser gate (npx playwright test)
+        working-directory: vite-plugin-react-server
+        run: npx playwright test --reporter=github,list
+
+      - name: The demo checkout is clean (every fixture restored)
+        if: always()
+        working-directory: bidoof-template
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
   # The static-host browser proofs (prerendered Suspense hydration, dumb-host
   # client navigation) live in test/examples behind a browser gate — without
   # this job CI would skip them green forever. Runs them under BOTH conditions
