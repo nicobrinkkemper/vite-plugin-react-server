@@ -20,6 +20,9 @@ import {
 //    from the flight error envelope) and the page stays alive.
 //  - redirect: an action redirect() lands on the target route — address bar
 //    and content both, no document load.
+//    A redirect() to the route already on screen (mutate, then back to the
+//    list) shows the returned page: the url does not change, so no
+//    navigation carries it.
 //  - notFound: an action notFound() swaps in the 404 route's flight with
 //    the address unchanged.
 //
@@ -67,6 +70,11 @@ async function setupFixture() {
       `export async function go() {\n` +
       `  redirect("/target/");\n` +
       `}\n` +
+      `export async function bumpHome() {\n` +
+      `  const next = Number(await readFile(STORE, "utf8")) + 1;\n` +
+      `  await writeFile(STORE, String(next));\n` +
+      `  redirect("/");\n` +
+      `}\n` +
       `export async function vanish() {\n` +
       `  notFound();\n` +
       `}\n` +
@@ -82,6 +90,7 @@ async function setupFixture() {
       `  bump: () => Promise<number>;\n` +
       `  peek: () => Promise<number>;\n` +
       `  go: () => Promise<void>;\n` +
+      `  bumpHome: () => Promise<void>;\n` +
       `  vanish: () => Promise<void>;\n` +
       `  explode: () => Promise<void>;\n` +
       `}) {\n` +
@@ -95,6 +104,7 @@ async function setupFixture() {
       `      <button id="peek" onClick={() => props.peek().then((v) => setPeeked("peeked:" + v))}>peek</button>\n` +
       `      {peeked ? <output id="peeked">{peeked}</output> : null}\n` +
       `      <button id="go" onClick={() => void props.go()}>go</button>\n` +
+      `      <button id="bump-home" onClick={() => void props.bumpHome()}>bump-home</button>\n` +
       `      <button id="vanish" onClick={() => void props.vanish()}>vanish</button>\n` +
       `      <button id="explode" onClick={() => props.explode().catch((e) => setCaught(e.message))}>explode</button>\n` +
       `      {caught ? <output id="caught">{caught}</output> : null}\n` +
@@ -106,12 +116,12 @@ async function setupFixture() {
     join(testDir, "src/page/page.tsx"),
     `import * as React from "react";\n` +
       `import { Actions } from "./Actions.client.js";\n` +
-      `import { bump, peek, go, vanish, explode } from "./actions.js";\n` +
+      `import { bump, peek, go, bumpHome, vanish, explode } from "./actions.js";\n` +
       `export const Page = ({ value }: { value: number }) => (\n` +
       `  <main>\n` +
       `    <h1 id="heading">home</h1>\n` +
       `    <p id="value">{"value:" + value}</p>\n` +
-      `    <Actions bump={bump} peek={peek} go={go} vanish={vanish} explode={explode} />\n` +
+      `    <Actions bump={bump} peek={peek} go={go} bumpHome={bumpHome} vanish={vanish} explode={explode} />\n` +
       `  </main>\n` +
       `);\n`
   );
@@ -119,11 +129,11 @@ async function setupFixture() {
     join(testDir, "src/page/target.tsx"),
     `import * as React from "react";\n` +
       `import { Actions } from "./Actions.client.js";\n` +
-      `import { bump, peek, go, vanish, explode } from "./actions.js";\n` +
+      `import { bump, peek, go, bumpHome, vanish, explode } from "./actions.js";\n` +
       `export const Page = () => (\n` +
       `  <main>\n` +
       `    <h1 id="heading">target-page</h1>\n` +
-      `    <Actions bump={bump} peek={peek} go={go} vanish={vanish} explode={explode} />\n` +
+      `    <Actions bump={bump} peek={peek} go={go} bumpHome={bumpHome} vanish={vanish} explode={explode} />\n` +
       `  </main>\n` +
       `);\n`
   );
@@ -283,6 +293,20 @@ describe.skipIf(!browserAvailable)("server-action outcomes (browser)", () => {
     const before = await text("#counter");
     await page.click("#counter");
     expect(await text("#counter")).not.toBe(before);
+    expect(documentRequests.length).toBe(documentBaseline);
+  }, 60000);
+
+  it("an action that mutates and redirects to the current route shows the new page", async () => {
+    expect(new URL(page.url()).pathname).toBe("/");
+    expect(await text("#value")).toBe("value:1");
+    const counter = await text("#counter");
+    const entries = await page.evaluate(() => history.length);
+
+    await page.click("#bump-home");
+    await waitFor(async () => (await text("#value")) === "value:2");
+    expect(new URL(page.url()).pathname).toBe("/");
+    expect(await text("#counter")).toBe(counter);
+    expect(await page.evaluate(() => history.length)).toBe(entries);
     expect(documentRequests.length).toBe(documentBaseline);
   }, 60000);
 

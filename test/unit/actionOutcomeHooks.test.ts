@@ -169,6 +169,54 @@ describe("createActionOutcomeHooks", () => {
     expect(router.getState().url).toBe("/next/");
   });
 
+  it("onRedirect to the current route delivers the returned page", async () => {
+    const fetches: string[] = [];
+    const router = makeRouter(async (url) => {
+      fetches.push(url);
+      return `flight:${url}`;
+    });
+    const delivered: string[] = [];
+    const hooks = createActionOutcomeHooks({
+      router: () => router,
+      deliver: (node) => delivered.push(node),
+      stripBasePath: (p) => p.replace(/^\/app/, ""),
+    });
+
+    router.navigate("/todos/");
+    await router.flight("/todos/");
+    fetches.length = 0;
+    let notified = 0;
+    const unsubscribe = router.subscribe(() => notified++);
+
+    // The action added a todo and redirected back to the list. The url does
+    // not change, so no router notification reaches the view: the page has
+    // to be delivered.
+    hooks.onRedirect("/app/todos/", "todos-after-mutation");
+    unsubscribe();
+
+    expect(notified).toBe(0);
+    expect(delivered).toEqual(["todos-after-mutation"]);
+    expect(router.getState().url).toBe("/todos/");
+    // The returned page is also what the cache now holds: no refetch.
+    expect(await router.flight("/todos/")).toBe("todos-after-mutation");
+    expect(fetches).toHaveLength(0);
+  });
+
+  it("onRedirect to another route leaves delivery to the navigation", () => {
+    const router = makeRouter(async (url) => `flight:${url}`);
+    const delivered: string[] = [];
+    const hooks = createActionOutcomeHooks({
+      router: () => router,
+      deliver: (node) => delivered.push(node),
+      stripBasePath: (p) => p,
+    });
+
+    hooks.onRedirect("/item/new/", "primed-page");
+
+    expect(delivered).toHaveLength(0);
+    expect(router.getState().url).toBe("/item/new/");
+  });
+
   it("onNotFound delivers the 404 route's flight and swallows a failed fetch", async () => {
     const router = makeRouter(async (url) => `flight:${url}`);
     const delivered: string[] = [];
