@@ -3,7 +3,8 @@ import type { Router } from "./createRouter.js";
 /**
  * Server-action outcomes, wired into the router so each lands as an SPA
  * transition: a redirect() delivers the target page (prime + navigate — no
- * second fetch); a notFound() swaps in the 404 route's flight with the
+ * second fetch; a redirect to the current route swaps the view in place); a
+ * notFound() swaps in the 404 route's flight with the
  * address unchanged; an action that called `ctx.refresh()` refreshes the
  * current route (drop cached flights, refetch, swap), so its mutation shows
  * without the client wiring anything.
@@ -35,6 +36,16 @@ export function createActionOutcomeHooks<T>(opts: {
       // post-mutation by the redirect follow, goes in fresh.
       router.invalidate();
       router.prime(target, page as T);
+      if (target === router.getState().url) {
+        // Mutate-then-redirect back to the route the user is on (a todo list
+        // posting to itself): the router does not notify for an unchanged
+        // url and the view skips an unchanged location, so navigate() would
+        // leave the pre-mutation page on screen. Hand the returned page to
+        // the view directly; like a browser navigating to its own url, this
+        // adds no history entry.
+        deliver(page as T);
+        return;
+      }
       router.navigate(target);
     },
     onNotFound: () => {
