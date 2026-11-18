@@ -16,24 +16,27 @@ import { readFileSync, existsSync, statSync } from "node:fs";
 import { join, extname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { renderRouteToFlight } from "./dist/server-edge/render.js";
+import {
+  renderRouteToFlight,
+  clientModuleBaseURL,
+  bootstrapModules,
+} from "./dist/server-edge/render.js";
 import { createEdgeHandler } from "vite-plugin-react-server/stream";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const clientDir = join(root, "dist", "client");
 
-// Derive the hydration bootstrap entry from the client build manifest — the
-// same `src/client.tsx -> <hashed>.js` mapping the SSG path reads. Served from
-// the root, so the bootstrap url is `/<file>` and moduleBaseURL is `/`.
-const clientManifest = JSON.parse(
-  readFileSync(join(clientDir, ".vite", "manifest.json"), "utf8")
-);
-const clientEntry = clientManifest["src/client.tsx"]?.file;
-const bootstrapModules = clientEntry ? ["/" + clientEntry] : [];
-
+// The bake exports both values the handler needs to find the client build:
+//
+// - `clientModuleBaseURL` is dist/client as a file url. The render runs in this
+//   process and loads each "use client" component by importing its built chunk,
+//   so the base has to be a location on disk. The browser's http base ("/")
+//   only works for a page without client components.
+// - `bootstrapModules` is the hashed client entry the browser loads to hydrate,
+//   served from the root below.
 const handler = createEdgeHandler({
   render: renderRouteToFlight,
-  moduleBaseURL: "/", // dist/client is served at the root below
+  moduleBaseURL: clientModuleBaseURL,
   bootstrapModules,
 });
 
@@ -45,6 +48,8 @@ const MIME = {
   ".html": "text/html; charset=utf-8",
   ".map": "application/json; charset=utf-8",
 };
+
+const port = Number(process.env.PORT ?? 8787);
 
 createServer(async (req, res) => {
   try {
@@ -83,6 +88,6 @@ createServer(async (req, res) => {
     res.statusCode = 500;
     res.end("Internal Server Error");
   }
-}).listen(8787, () => {
-  console.log("edge demo running on http://localhost:8787");
+}).listen(port, () => {
+  console.log(`edge demo running on http://localhost:${port}`);
 });

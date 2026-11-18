@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { cp, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +15,10 @@ import { fileURLToPath } from "node:url";
  * tsconfig.json, and a fixture inside the repo would pick up the repo's own
  * (classic JSX) one. The example's pages use JSX without importing React, so
  * whether it builds depends on the JSX mode the installed Vite ends up with.
+ *
+ * The built project is then served by the hello-world example's
+ * edge-server.mjs, copied in unchanged. The home page renders a "use client"
+ * component, which the in-process render has to import from dist/client.
  */
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -27,6 +32,18 @@ const EXAMPLE_FILES = [
   "src/client.tsx",
   "index.html",
 ];
+
+/** A port nothing listens on, picked by the OS. */
+function freePort(): Promise<number> {
+  return new Promise((done, fail) => {
+    const probe = createServer();
+    probe.once("error", fail);
+    probe.listen(0, "127.0.0.1", () => {
+      const { port } = probe.address() as { port: number };
+      probe.close(() => done(port));
+    });
+  });
+}
 
 /** The code blocks of the "Minimal example" section, keyed by the path in each block's first-line comment. */
 async function readExampleFiles(): Promise<Map<string, string>> {
@@ -45,6 +62,9 @@ describe("README minimal example", () => {
   let projectDir: string;
   let status: number | null;
   let output: string;
+  let edgeServer: ChildProcess | undefined;
+  let edgeOrigin: string;
+  let edgeOutput = "";
 
   beforeAll(async () => {
     const files = await readExampleFiles();
@@ -121,9 +141,35 @@ describe("README minimal example", () => {
     });
     status = proc.status;
     output = `${proc.stdout ?? ""}\n${proc.stderr ?? ""}`;
+    if (status !== 0) return;
+
+    await cp(
+      join(repoRoot, "examples/hello-world/edge-server.mjs"),
+      join(projectDir, "edge-server.mjs")
+    );
+    const port = await freePort();
+    edgeOrigin = `http://127.0.0.1:${port}`;
+    const server = spawn(process.execPath, ["edge-server.mjs"], {
+      cwd: projectDir,
+      env: { ...env, PORT: String(port) },
+    });
+    edgeServer = server;
+    await new Promise<void>((ready, fail) => {
+      const collect = (chunk: Buffer) => {
+        edgeOutput += chunk.toString();
+        if (edgeOutput.includes("edge demo running")) ready();
+      };
+      server.stdout.on("data", collect);
+      server.stderr.on("data", collect);
+      server.once("error", fail);
+      server.once("exit", (code) =>
+        fail(new Error(`edge-server.mjs exited with ${code}:\n${edgeOutput}`))
+      );
+    });
   }, 180_000);
 
   afterAll(async () => {
+    edgeServer?.kill();
     if (projectDir) await rm(projectDir, { recursive: true, force: true });
   });
 
@@ -143,5 +189,24 @@ describe("README minimal example", () => {
       "utf8"
     );
     expect(about).toContain("About");
+  });
+
+  it("server-renders the page with a client component through the edge server", async () => {
+    const response = await fetch(`${edgeOrigin}/`);
+    const html = await response.text();
+    expect(response.status).toBe(200);
+    // The server's own markup, not a client-render fallback: the heading and
+    // the client component's links are in the response.
+    expect(html).toContain("<h1>Hello from the server</h1>");
+    expect(html).toContain('href="/about"');
+    expect(html).not.toContain("Switched to client rendering");
+    expect(edgeOutput).not.toContain("ERR_INVALID_FILE_URL_HOST");
+    // The browser gets the client entry to hydrate with.
+    expect(html).toMatch(/<script type="module" src="\/assets\/[^"]+\.js"/);
+  });
+
+  it("server-renders the page without a client component through the edge server", async () => {
+    const html = await (await fetch(`${edgeOrigin}/about`)).text();
+    expect(html).toContain("<h1>About</h1>");
   });
 });
