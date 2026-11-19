@@ -42,8 +42,8 @@ async function collectBytes(
  * runtime `--conditions`: the producer baked server React, this side runs
  * client React, and they co-exist in one isolate (client islands resolve via
  * the client transport's `import(moduleBaseURL + id)` into the ssr bundle, so
- * point {@link CreateEdgeHandlerOptions.moduleBaseURL} at where `dist/client`
- * is served).
+ * point {@link CreateEdgeHandlerOptions.moduleBaseURL} at `dist/client` on
+ * disk as a file URL, the edge bundle's `clientModuleBaseURL`).
  *
  * The returned handler streams: it responds as soon as the HTML shell is ready.
  * Unknown routes get a 404 (override via `onNotFound`); other render errors

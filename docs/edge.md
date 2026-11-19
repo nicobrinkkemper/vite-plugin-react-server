@@ -240,13 +240,17 @@ producer and the HTML render into a standard Web `(Request) => Response` handler
 Reach for it directly only to drive the producer yourself:
 
 ```ts
-import { renderRouteToFlight } from "./dist/server-edge/render.js";
+import {
+  renderRouteToFlight,
+  clientModuleBaseURL,
+  bootstrapModules,
+} from "./dist/server-edge/render.js";
 import { createEdgeHandler } from "vite-plugin-react-server/stream";
 
 const handler = createEdgeHandler({
   render: renderRouteToFlight,
-  moduleBaseURL: "/",                       // where dist/client is served
-  bootstrapModules: ["/client-abc123.js"],  // your client entry (for hydration)
+  moduleBaseURL: clientModuleBaseURL, // dist/client on disk, as a file url
+  bootstrapModules,                   // the client entry (for hydration)
 });
 
 export default { fetch: handler };          // Node server, Bun, a Node serverless function
@@ -261,7 +265,7 @@ for a url that matches no baked route or route pattern (override via
 | option                  | default                          | meaning |
 | ----------------------- | -------------------------------- | ------- |
 | `render`                | —                                | the baked `renderRouteToFlight` |
-| `moduleBaseURL`         | `"/"`                            | base url where `dist/client` is served; client islands resolve against it. Mind a non-root deploy base. |
+| `moduleBaseURL`         | `"/"`                            | where the render finds the built client chunks. The render runs in-process and imports each client component from this base, so on the `"esm"` transport pass `dist/client` as a **file URL** (the baked `clientModuleBaseURL`). The default `"/"` only renders pages without client components. |
 | `bootstrapModules`      | `[]`                             | client entry module(s) to bootstrap hydration |
 | `bootstrapScriptContent`| —                                | inline bootstrap script |
 | `nonce`                 | —                                | CSP nonce |

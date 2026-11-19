@@ -53,10 +53,13 @@ export type CreateEdgeHandlerOptions = {
     opts?: { request?: Request; platform?: unknown[] }
   ) => Promise<EdgeDocumentFlights>;
   /**
-   * Base URL the client transport uses to resolve client-reference modules —
-   * point it at where the client (ssr) bundle is served (`dist/client`). Must
-   * match the base path the bundle is actually hosted under (mind a non-root
-   * deploy base). @default "/"
+   * Base URL the in-process render resolves client-reference modules against.
+   * The `"esm"` transport imports each client component as
+   * `import(moduleBaseURL + id)`, so pass the built client bundle
+   * (`dist/client`) as a file URL: the `clientModuleBaseURL` the edge bundle
+   * exports. The default only renders pages without client components; the
+   * browser's http base is not a location this process can import from.
+   * @default "/"
    */
   moduleBaseURL?: string;
   /** Client entry modules to bootstrap for hydration (react-dom bootstrapModules). */
