@@ -330,8 +330,10 @@ On a real edge platform you export the handler directly. On Node, wrap it in a
 tiny adapter that serves `dist/client` and routes the rest through the handler.
 The `examples/hello-world` example ships a complete one — see
 [`edge-server.mjs`](../examples/hello-world/edge-server.mjs). It calls
-`renderRouteToDocument`, so `GET /` is a full HTML document (the route
-`head.ts` title included), not the partial markup from `renderRouteToFlight`:
+`renderRouteToDocument`, so `GET /` is a full HTML document from the `Html`
+component, not the partial markup from `renderRouteToFlight`. The `<title>`
+in that example's `index.html` is the dev tab only and is not part of this
+document:
 
 ```bash
 cd examples/hello-world

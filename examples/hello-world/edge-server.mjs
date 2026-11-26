@@ -35,8 +35,9 @@ const clientDir = join(root, "dist", "client");
 // - `bootstrapModules` is the hashed client entry the browser loads to hydrate,
 //   served from the root below.
 //
-// `renderRouteToDocument` is the full document (html/head/body, the route's
-// head.ts title, the charset). `renderRouteToFlight` is only the inner markup.
+// `renderRouteToDocument` is the full document from the Html component
+// (html/head/body and its charset). It does not copy index.html's <title>.
+// `renderRouteToFlight` is only the inner markup.
 const handler = createEdgeHandler({
   renderDocument: (url) => renderRouteToDocument(url),
   moduleBaseURL: clientModuleBaseURL,

@@ -156,6 +156,9 @@ export const Loading = () => <p>Loading greeting…</p>;
 
 ## Per-route head and meta
 
+`head.ts` is the document `<title>` and meta. The `<title>` in `index.html`
+is the dev tab only and is not copied here.
+
 `head.ts` exports `head`: a static object, or a function receiving
 `{ url, params, data }` where `data` is the segment's resolved loader result.
 Contributions merge root→leaf. The deepest `title` and `lang` win, and a meta
