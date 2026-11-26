@@ -38,8 +38,11 @@ const clientDir = join(root, "dist", "client");
 // `renderRouteToDocument` is the full document from the Html component
 // (html/head/body and its charset). It does not copy index.html's <title>.
 // `renderRouteToFlight` is only the inner markup.
+// Pass the function itself. createEdgeHandler calls it with
+// `{ request, platform }`, and a wrapper that only forwards the url drops
+// the cookies, headers, and host bindings a per-request props/loader reads.
 const handler = createEdgeHandler({
-  renderDocument: (url) => renderRouteToDocument(url),
+  renderDocument: renderRouteToDocument,
   moduleBaseURL: clientModuleBaseURL,
   bootstrapModules,
 });
