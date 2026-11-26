@@ -371,7 +371,7 @@ configuration there. Chakra's
 includes such a wrapper.
 
 vprs discovers packages with a React peer dependency using
-[`vitefu.crawlFrameworkPkgs`](https://github.com/svitejs/vitefu). Adjust the
+[`vitefu.crawlFrameworkPkgs`](https://github.com/bluwy/vitefu). Adjust the
 detected list when necessary:
 
 ```ts

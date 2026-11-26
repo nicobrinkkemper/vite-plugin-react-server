@@ -67,9 +67,7 @@ npm run lint      # eslint ./plugin --fix
 
 ## Where to ask
 
-- **Questions / ideas / "is this a bug?"** → open a
-  [Discussion](https://github.com/nicobrinkkemper/vite-plugin-react-server/discussions).
-- **Reproducible bugs and concrete feature requests** → open an
+- **Questions, ideas, bugs, and feature requests** → open an
   [Issue](https://github.com/nicobrinkkemper/vite-plugin-react-server/issues/new/choose)
   using a template.
 - **Docs** → start at [`docs/`](./docs) and the
