@@ -70,6 +70,15 @@ describe("mergeDevShellHead", () => {
     expect(html).toContain('rel="icon"'); // everything else untouched
   });
 
+  it("drops the index.html charset when the document provides one", () => {
+    const { html, tags } = mergeDevShellHead(INDEX, extractDocumentHeadTags(DOC));
+    expect(html).not.toMatch(/<meta\b[^>]*charset/i);
+    expect(html).toContain('rel="icon"');
+    expect(
+      tags.some((t) => t.tag === "meta" && t.attrs != null && "charSet" in t.attrs)
+    ).toBe(true);
+  });
+
   it("keeps the index.html title when the document has none", () => {
     const { html } = mergeDevShellHead(
       INDEX,

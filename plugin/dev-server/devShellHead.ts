@@ -62,19 +62,35 @@ export function extractDocumentHeadTags(
  * Reconcile the user's index.html with the document-provided head.
  *
  * transformIndexHtml tags can only ADD, so collisions are resolved by
- * rewriting the served html: when the document supplies a <title>, the user
- * index.html's title is dropped (the document is the source of truth — a
- * kept copy is exactly the silent-divergence footgun this feature removes).
- * Everything else is additive; React's own hoisting dedupes identical
- * meta/link at hydration.
+ * rewriting the served html: when the document supplies a <title> or a
+ * charset meta, the copy in index.html is dropped. The document is the
+ * source of truth — a kept title diverges silently, and a kept charset
+ * sits next to the one Html always emits (`charset` vs `charSet`,
+ * `UTF-8` vs `utf-8`), which React does not treat as the same tag.
+ * Everything else is additive.
  */
+const CHARSET_META_RE =
+  /<meta\b[^>]*\bcharset\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+)[^>]*>\s*/gi;
+
+/**
+ * True when a head descriptor is a charset meta, in either React's
+ * `charSet` prop name or the HTML `charset` attribute.
+ */
+function isCharsetMeta(tag: HtmlTagDescriptor): boolean {
+  if (tag.tag !== "meta" || tag.attrs == null) return false;
+  return "charset" in tag.attrs || "charSet" in tag.attrs;
+}
+
 export function mergeDevShellHead(
   indexHtml: string,
   documentTags: HtmlTagDescriptor[]
 ): { html: string; tags: HtmlTagDescriptor[] } {
-  const hasTitle = documentTags.some((t) => t.tag === "title");
-  const html = hasTitle
-    ? indexHtml.replace(/<title\b[^>]*>[\s\S]*?<\/title>\s*/i, "")
-    : indexHtml;
+  let html = indexHtml;
+  if (documentTags.some((t) => t.tag === "title")) {
+    html = html.replace(/<title\b[^>]*>[\s\S]*?<\/title>\s*/i, "");
+  }
+  if (documentTags.some(isCharsetMeta)) {
+    html = html.replace(CHARSET_META_RE, "");
+  }
   return { html, tags: documentTags };
 }

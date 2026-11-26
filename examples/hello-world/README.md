@@ -12,6 +12,7 @@ examples/hello-world/
 ├── tsconfig.json
 └── src/
     ├── page.tsx      # 'Page' export — server component
+    ├── head.ts       # document <title> for prerender and the edge document
     └── client.tsx    # startClient (hydration + HMR + dev error recovery)
 ```
 
@@ -45,9 +46,11 @@ This example focuses on dev. For production-build flags see [docs/getting-starte
 ## Edge / single-isolate
 
 The single-isolate edge build (`build.edge`, on by default) bakes
-`dist/server-edge/render.js` — flash-free SSR from one Web `fetch` handler, no
-`worker_threads` and no `--conditions`. This example only sets `edge: { minify:
-false }` in `vite.config.ts` to keep the baked bundle readable.
+`dist/server-edge/render.js`. `edge-server.mjs` serves it through
+`renderRouteToDocument`: a full HTML document, with the `head.ts` title and
+the built-in charset, and no `worker_threads` or `--conditions`. This example
+only sets `edge: { minify: false }` in `vite.config.ts` to keep the baked
+bundle readable.
 
 ```bash
 npm run build     # emits dist/server-edge/render.js + dist/client
