@@ -329,7 +329,11 @@ the only form workerd supports.
 On a real edge platform you export the handler directly. On Node, wrap it in a
 tiny adapter that serves `dist/client` and routes the rest through the handler.
 The `examples/hello-world` example ships a complete one — see
-[`edge-server.mjs`](../examples/hello-world/edge-server.mjs):
+[`edge-server.mjs`](../examples/hello-world/edge-server.mjs). It calls
+`renderRouteToDocument`, so `GET /` is a full HTML document from the `Html`
+component, not the partial markup from `renderRouteToFlight`. The `<title>`
+in that example's `index.html` is the dev tab only and is not part of this
+document:
 
 ```bash
 cd examples/hello-world
@@ -344,7 +348,7 @@ one whose initial HTML carries the live data and hydrates with no `.rsc` refetch
 the bundle also exports `renderRouteToDocument`:
 
 ```ts
-renderRouteToDocument(url, { cssFiles, globalCss }): Promise<{
+renderRouteToDocument(url, { request, platform, cssFiles, globalCss }): Promise<{
   full: ReadableStream;      // Html/Root-wrapped document flight
   headless: ReadableStream;  // Root-only #root contents, for the inline payload
 }>
@@ -361,7 +365,10 @@ interleaved scripts are executable and are stamped with it.
 
 ```ts
 const handler = createEdgeHandler({
-  renderDocument: (url) => renderRouteToDocument(url, { cssFiles }),
+  // Spread opts. The handler passes `{ request, platform }` so a loader can
+  // read cookies, headers, and host bindings along with `cssFiles`.
+  renderDocument: (url, opts) =>
+    renderRouteToDocument(url, { ...opts, cssFiles }),
   moduleBaseURL: pathToFileURL(join(buildDir, "client")).href + "/", // ssr bundle, on disk
   bootstrapModules: ["/" + clientEntry],
 });

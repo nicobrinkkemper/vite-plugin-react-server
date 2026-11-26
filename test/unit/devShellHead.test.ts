@@ -70,6 +70,26 @@ describe("mergeDevShellHead", () => {
     expect(html).toContain('rel="icon"'); // everything else untouched
   });
 
+  it("drops the index.html charset when the document provides one", () => {
+    const { html, tags } = mergeDevShellHead(INDEX, extractDocumentHeadTags(DOC));
+    expect(html).not.toMatch(/<meta\b[^>]*charset/i);
+    expect(html).toContain('rel="icon"');
+    expect(
+      tags.some((t) => t.tag === "meta" && t.attrs != null && "charSet" in t.attrs)
+    ).toBe(true);
+  });
+
+  it("drops a head http-equiv charset and leaves one in the body", () => {
+    const index = `<!DOCTYPE html><html><head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="icon" href="/favicon.ico" />
+</head><body><meta charset="utf-8"></body></html>`;
+    const { html } = mergeDevShellHead(index, extractDocumentHeadTags(DOC));
+    expect(html).not.toMatch(/http-equiv/i);
+    expect(html).toContain('<meta charset="utf-8">');
+    expect(html).toContain('rel="icon"');
+  });
+
   it("keeps the index.html title when the document has none", () => {
     const { html } = mergeDevShellHead(
       INDEX,

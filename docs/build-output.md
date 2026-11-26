@@ -6,10 +6,12 @@ function) is a consumer of the output described here, not a separate build
 mode. The [deploy recipes](./README.md#three-ways-to-ship) all read from this
 page.
 
-Running `vite build --app` produces three directories (the command follows
-your declared runner: `runner: "main"` requires the
+Running `vite build --app` produces `dist/static/`, `dist/client/`, and
+`dist/server/`. With `build.edge` left on (the default) it also produces
+`dist/server-edge/`. The command follows your declared runner:
+`runner: "main"` requires the
 `NODE_OPTIONS='--conditions react-server'` prefix, `runner: "isolated"` runs
-plain — the output is identical either way):
+plain — the output is identical either way:
 
 ```
 dist/
@@ -30,13 +32,15 @@ dist/
 ├── client/                    # Client components built for Node
 │   └── assets/components/
 │       └── Counter.client-CnBCzH8H.js
-└── server/                    # Server components (react-server condition)
-    ├── page/
-    │   ├── page.js
-    │   ├── props.js
-    │   └── actions.server.js
-    └── assets/components/
-        └── Counter.client-CnBCzH8H.js
+├── server/                    # Server components (react-server condition)
+│   ├── page/
+│   │   ├── page.js
+│   │   ├── props.js
+│   │   └── actions.server.js
+│   └── assets/components/
+│       └── Counter.client-CnBCzH8H.js
+└── server-edge/               # On by default. See dist/server-edge/ below
+    └── render.js
 ```
 
 ### Where generated files go: `build.assetsDir`
@@ -359,7 +363,7 @@ dist/
     └── consumer.js    # webpack transport only: flight → HTML half, client React inlined
 ```
 
-This is **additive** — the three directories above are untouched. `render.js`
+This is **additive** — `dist/static/`, `dist/client/`, and `dist/server/` are untouched. `render.js`
 exports `renderRouteToDocument(url)` (the full flash-free document pair the
 handlers drive), `renderRouteToFlight(url)` (the headless `.rsc` producer),
 `handleRouteAction` (the baked sealed action gate), and its own baked wiring

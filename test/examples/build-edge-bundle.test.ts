@@ -185,7 +185,7 @@ describe.skipIf(!renderFlightToHtml)(
       const clientEntry = clientManifest["src/client.tsx"]?.file as string;
 
       const handler = createEdgeHandler!({
-        renderDocument: (url: string) => renderRouteToDocument(url),
+        renderDocument: renderRouteToDocument,
         moduleBaseURL: "/",
         bootstrapModules: ["/" + clientEntry],
       });

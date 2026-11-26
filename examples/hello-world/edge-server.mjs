@@ -17,7 +17,7 @@ import { join, extname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  renderRouteToFlight,
+  renderRouteToDocument,
   clientModuleBaseURL,
   bootstrapModules,
 } from "./dist/server-edge/render.js";
@@ -34,8 +34,15 @@ const clientDir = join(root, "dist", "client");
 //   only works for a page without client components.
 // - `bootstrapModules` is the hashed client entry the browser loads to hydrate,
 //   served from the root below.
+//
+// `renderRouteToDocument` is the full document from the Html component
+// (html/head/body and its charset). It does not copy index.html's <title>.
+// `renderRouteToFlight` is only the inner markup.
+// Pass the function itself. createEdgeHandler calls it with
+// `{ request, platform }`, and a wrapper that only forwards the url drops
+// the cookies, headers, and host bindings a per-request props/loader reads.
 const handler = createEdgeHandler({
-  render: renderRouteToFlight,
+  renderDocument: renderRouteToDocument,
   moduleBaseURL: clientModuleBaseURL,
   bootstrapModules,
 });

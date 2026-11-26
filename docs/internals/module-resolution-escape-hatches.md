@@ -50,12 +50,12 @@ statement alone in the output". A Rollup option that Vite forwards in
 
 vprs reaches for it on exactly those cases — the Node-only SSR/server bundle
 externalizes `react`, `react-dom`, `react-server-dom-esm/server`
-([`plugin/config/resolveUserConfig.ts:645-652`](../../plugin/config/resolveUserConfig.ts#L645));
+([`plugin/config/resolveUserConfig.ts:853-860`](../../plugin/config/resolveUserConfig.ts#L853));
 `fsevents` is excluded at
-[`:548`](../../plugin/config/resolveUserConfig.ts#L548) and
-[`:560`](../../plugin/config/resolveUserConfig.ts#L560); the SSR client
+[`:730`](../../plugin/config/resolveUserConfig.ts#L730) and
+[`:742`](../../plugin/config/resolveUserConfig.ts#L742); the SSR client
 bundle ships React from a runtime at
-[`:481-487`](../../plugin/config/resolveUserConfig.ts#L481).
+[`:657-662`](../../plugin/config/resolveUserConfig.ts#L657).
 
 The trap is reaching for it when the specifier doesn't actually exist at
 runtime. A `virtual:*` URL has no provider on the consumer; externalizing
@@ -89,10 +89,10 @@ environment layer:
 > // In Environment API, externals go in resolve.external, not
 > // build.rollupOptions.external
 >
-> — [`plugin/environments/createEnvironmentPlugin.ts:237`](../../plugin/environments/createEnvironmentPlugin.ts#L237)
+> — [`plugin/environments/createEnvironmentPlugin.ts:425`](../../plugin/environments/createEnvironmentPlugin.ts#L425)
 
 The actual hoist happens at
-[`:241-267`](../../plugin/environments/createEnvironmentPlugin.ts#L241):
+[`:429-455`](../../plugin/environments/createEnvironmentPlugin.ts#L429):
 the resolved user config's `rollupOptions.external` is moved to
 `environment.resolve.external`, then the original is cleared so the
 externalization doesn't apply twice.
@@ -123,10 +123,10 @@ vprs uses it for `clientPackages` (Chakra, MUI, Mantine, react-aria, …):
 > the server bundle, where our transform converts each `"use client"`
 > module to a `registerClientReference` stub. …
 >
-> — [`plugin/config/resolveUserConfig.ts:384-395`](../../plugin/config/resolveUserConfig.ts#L384)
+> — [`plugin/config/resolveUserConfig.ts:510-525`](../../plugin/config/resolveUserConfig.ts#L510)
 
 Implementation at
-[`plugin/clientPackages/applyConfig.ts:27-36`](../../plugin/clientPackages/applyConfig.ts#L27).
+[`plugin/clientPackages/applyConfig.ts:34-39`](../../plugin/clientPackages/applyConfig.ts#L34).
 
 The cost: excluding adds dev cold-start time (every import resolves through
 Vite rather than the pre-bundled blob) and risks late-discovery full reloads
@@ -159,7 +159,7 @@ include: config.ssr?.optimizeDeps?.include ?? [
 ],
 ```
 
-— [`plugin/config/resolveUserConfig.ts:409-413`](../../plugin/config/resolveUserConfig.ts#L409)
+— [`plugin/config/resolveUserConfig.ts:539-543`](../../plugin/config/resolveUserConfig.ts#L539)
 
 The Storybook preset filters out the vendored entries because under
 Storybook the vendor-alias isn't installed, so a bare
@@ -171,7 +171,7 @@ const include = (config.optimizeDeps?.include ?? []).filter(
 );
 ```
 
-— [`plugin/storybook/preset.ts:51-53`](../../plugin/storybook/preset.ts#L51)
+— [`plugin/storybook/preset.ts:178-180`](../../plugin/storybook/preset.ts#L178)
 
 **Failure mode.** Including a vendor-aliased specifier breaks dev startup
 with `Failed to resolve entry for package "react-server-dom-esm"`. The alias
@@ -201,17 +201,17 @@ environment API:
 > SSR env (outputs dist/client/) bundles them in alongside user-authored
 > .client.tsx files.
 >
-> — [`plugin/config/resolveUserConfig.ts:488-491`](../../plugin/config/resolveUserConfig.ts#L488)
+> — [`plugin/config/resolveUserConfig.ts:664-668`](../../plugin/config/resolveUserConfig.ts#L664)
 
 Mirror sites at
-[`:608`](../../plugin/config/resolveUserConfig.ts#L608) (server config),
-[`:406`](../../plugin/config/resolveUserConfig.ts#L406) (SSR-side config
+[`:803`](../../plugin/config/resolveUserConfig.ts#L803) (server config),
+[`:536`](../../plugin/config/resolveUserConfig.ts#L536) (SSR-side config
 object), and
-[`:492`](../../plugin/config/resolveUserConfig.ts#L492) (the Vite 6 form).
+[`:668`](../../plugin/config/resolveUserConfig.ts#L668) (the Vite 6 form).
 Merge logic at
-[`plugin/clientPackages/applyConfig.ts:9-24`](../../plugin/clientPackages/applyConfig.ts#L9);
+[`plugin/clientPackages/applyConfig.ts:9-27`](../../plugin/clientPackages/applyConfig.ts#L9);
 auto-discovery (packages with `react` in `peerDependencies`) at
-[`plugin/clientPackages/discover.ts:35-67`](../../plugin/clientPackages/discover.ts#L35).
+[`plugin/clientPackages/discover.ts:41-73`](../../plugin/clientPackages/discover.ts#L41).
 
 **Failure mode.** If you forget `noExternal` on a clientPackage, Node's
 loader pulls the package from `node_modules` at SSG-render time, bypassing
@@ -234,7 +234,7 @@ Three legitimate shapes:
 
 - Providing the *real* implementation of a `virtual:*` URL. The dev-server
   side of vprs's HMR is exactly this, at
-  [`plugin/dev-server/virtualRscHmrPlugin.ts:117-127`](../../plugin/dev-server/virtualRscHmrPlugin.ts#L117).
+  [`plugin/dev-server/virtualRscHmrPlugin.ts:122-136`](../../plugin/dev-server/virtualRscHmrPlugin.ts#L122).
 - Substituting a no-op for a `virtual:*` URL when the real provider isn't
   in scope. The Storybook-build case is the worked example below.
 - Rewriting one bare specifier to another, like remapping
@@ -338,17 +338,15 @@ eliminating the need for consumers to install or patch it:
 > import() (not eval'd as ESM by Vite's module runner, which lacks
 > require()).
 >
-> — [`plugin/vendor/vendor-alias.ts:20-31`](../../plugin/vendor/vendor-alias.ts#L20)
+> — [`plugin/vendor/vendor-alias.ts:8-19`](../../plugin/vendor/vendor-alias.ts#L8)
 
 Concrete sites: the alias install at
-[`:42-51`](../../plugin/vendor/vendor-alias.ts#L42); the `resolveId` with
+[`:52-64`](../../plugin/vendor/vendor-alias.ts#L52); the `resolveId` with
 `external: true` for server entries at
-[`:73-85`](../../plugin/vendor/vendor-alias.ts#L73); the symlink fallback
-at [`:93-112`](../../plugin/vendor/vendor-alias.ts#L93). Registered in both
-orchestrators —
-[`plugin/orchestrator/createPluginOrchestrator.server.ts:39`](../../plugin/orchestrator/createPluginOrchestrator.server.ts#L39)
-and
-[`.client.ts:33`](../../plugin/orchestrator/createPluginOrchestrator.client.ts#L33).
+[`:93-113`](../../plugin/vendor/vendor-alias.ts#L93); the symlink fallback
+at [`:125-149`](../../plugin/vendor/vendor-alias.ts#L125). Registered once,
+from the shared orchestrator body —
+[`plugin/orchestrator/createPluginOrchestrator.impl.ts:49`](../../plugin/orchestrator/createPluginOrchestrator.impl.ts#L49).
 
 The Storybook preset's `resolveReactServerDomEsm()` is a reduced version of
 the same pattern: it re-targets `react-server-dom-esm/client.browser` at
@@ -409,7 +407,7 @@ include resolution outside Vite's plugin pipeline, so the alias doesn't
 apply. Dev startup errors with `Failed to resolve entry for package
 "react-server-dom-esm"`. The Storybook preset filters those entries back
 out at
-[`plugin/storybook/preset.ts:51-53`](../../plugin/storybook/preset.ts#L51).
+[`plugin/storybook/preset.ts:178-180`](../../plugin/storybook/preset.ts#L178).
 
 **Forgetting `optimizeDeps.exclude` for a `clientPackages` entry.**
 Pre-bundle concatenates the package and the `"use client"` directives are
@@ -417,11 +415,11 @@ lost. The transformer treats the package as ordinary library code and never
 emits client references — the components render nothing.
 `optimizeDeps.exclude` and `ssr.noExternal` are always paired for a
 clientPackage; one without the other is broken (see comment block at
-[`plugin/config/resolveUserConfig.ts:384-395`](../../plugin/config/resolveUserConfig.ts#L384)).
+[`plugin/config/resolveUserConfig.ts:510-525`](../../plugin/config/resolveUserConfig.ts#L510)).
 
 **Setting `build.rollupOptions.external` *and* `resolve.external` in env
 code.** The environment plugin at
-[`plugin/environments/createEnvironmentPlugin.ts:241-267`](../../plugin/environments/createEnvironmentPlugin.ts#L241)
+[`plugin/environments/createEnvironmentPlugin.ts:425-455`](../../plugin/environments/createEnvironmentPlugin.ts#L425)
 clears `rollupOptions.external` after lifting it. A new env-config site
 that sets both will double-apply the externalization — function-form
 externals get called twice; array-form externals merge unpredictably.
@@ -430,7 +428,7 @@ Lift, never duplicate.
 **Vendor-aliasing without ensuring `node_modules` reachability.** Vite's
 module runner resolves bare imports through Node's resolution, not through
 plugin hooks. Aliasing without the symlink step (see
-[`plugin/vendor/vendor-alias.ts:93-112`](../../plugin/vendor/vendor-alias.ts#L93))
+[`plugin/vendor/vendor-alias.ts:125-149`](../../plugin/vendor/vendor-alias.ts#L125))
 works under `vite dev` and `vite build` but breaks under the runner. CJS
 server entries additionally need `external: true` so the runner uses
 native Node `import()` instead of trying to eval CJS as ESM.
@@ -443,4 +441,4 @@ native Node `import()` instead of trying to eval CJS as ESM.
   [`optimizeDeps.exclude`](https://vite.dev/config/dep-optimization-options.html#optimizedeps-exclude) /
   [`optimizeDeps.include`](https://vite.dev/config/dep-optimization-options.html#optimizedeps-include)
 - Vite, [Environment API — `resolve.external`](https://vite.dev/guide/api-environment.html)
-- Vite, [Virtual Modules Convention](https://vite.dev/guide/api-plugin.html#virtual-modules-convention)
+- Vite, [Importing a Virtual File](https://vite.dev/guide/api-plugin.html#importing-a-virtual-file)

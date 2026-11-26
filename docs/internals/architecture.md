@@ -113,7 +113,7 @@ The directive discoverer reads `<projectRoot>/index.html` once at discovery time
 1. `processCssFilesForPages` (`plugin/react-static/processCssFilesForPages.ts:34`) calls `collectManifestCss(staticManifest, "index.html")` to derive global CSS for every page, so the static manifest must keep its `index.html` entry.
 2. Vite drops the `index.html` manifest entry when an explicit input overlaps with one of its `<script type="module" src>` references — the script-src module would then be treated as the entry and the `index.html` key disappears.
 
-Vite still picks up the script-src module via its own index.html input. The filter keeps the discoverer's `inputs` record from colliding with it. See `createDirectiveClientAutoDiscover.ts:10-24, 60-79`.
+Vite still picks up the script-src module via its own index.html input. The filter keeps the discoverer's `inputs` record from colliding with it. See `createDirectiveClientAutoDiscover.ts:11-24, 83-102`.
 
 ## Client-Module Detection
 

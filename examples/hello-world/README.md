@@ -38,6 +38,8 @@ The plugin's README "Minimal Example" snippet (one `vite.config.ts`, one `page.t
 
 This example is the smallest config that ships all four. Use it as a reference when porting docs snippets into a real app.
 
+The `<title>` in `index.html` is the dev tab only. This example sets no `head.ts` and no custom `Html`, so the built page and the edge document have no `<title>`. Those come from `head.ts` or the `Html` component, not from `index.html`.
+
 ## Build
 
 This example focuses on dev. For production-build flags see [docs/getting-started.md](../../docs/getting-started.md) and the larger [bidoof-template](https://github.com/nicobrinkkemper/vite-plugin-react-server-demo-official).
@@ -45,9 +47,11 @@ This example focuses on dev. For production-build flags see [docs/getting-starte
 ## Edge / single-isolate
 
 The single-isolate edge build (`build.edge`, on by default) bakes
-`dist/server-edge/render.js` — flash-free SSR from one Web `fetch` handler, no
-`worker_threads` and no `--conditions`. This example only sets `edge: { minify:
-false }` in `vite.config.ts` to keep the baked bundle readable.
+`dist/server-edge/render.js`. `edge-server.mjs` serves it through
+`renderRouteToDocument`: a full HTML document from the `Html` component, with
+the built-in charset, and no `worker_threads` or `--conditions`. This example
+only sets `edge: { minify: false }` in `vite.config.ts` to keep the baked
+bundle readable.
 
 ```bash
 npm run build     # emits dist/server-edge/render.js + dist/client

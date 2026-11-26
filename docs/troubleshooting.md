@@ -105,13 +105,13 @@ Keep every transitive dependency on that same React with npm overrides:
 
 **Symptoms:** On some static hosts, non-ASCII text in a prerendered page (`…`, `—`, curly quotes) renders as `â€¦`-style garbage. The same build looks fine on GH Pages or Vercel.
 
-A snapshot contains exactly the head your app renders — nothing injects a charset for you. When the file server also omits `charset=utf-8` from `Content-Type` (GH Pages and Vercel send it; bare servers often don't), the browser falls back to Latin-1. Declare it in the app:
+The built-in `Html` component always emits `<meta charSet="utf-8" />`, so a default `dist/static/index.html` already contains it. A `charSet` entry in `head.ts` is dropped: the document is always UTF-8. You only add the tag yourself when you replace `Html` and leave it out:
 
 ```tsx
 <meta charSet="utf-8" />
 ```
 
-React hoists it to first-in-head with charset precedence, so the snapshot is self-describing on any host.
+React hoists it to first-in-head with charset precedence, so the snapshot stays self-describing when the file server omits `charset=utf-8` from `Content-Type` (GH Pages and Vercel send it; bare servers often don't).
 
 ## `"use server"` Not Working
 

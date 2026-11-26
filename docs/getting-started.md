@@ -116,7 +116,10 @@ Load it from an `index.html` in the project root:
 
 `index.html` is Vite's entry point, not the document of your pages: those
 come from the `Html` component (see [Add an HTML Shell](#add-an-html-shell)).
-vprs finds the client entry through it, so you don't need the `clientEntry`
+A `<title>` here is the dev tab title. The built page's `<title>` comes from
+that `Html` component, or from `head.ts` with the file router. They stay
+different until you set both. vprs finds the client entry through
+`index.html`, so you don't need the `clientEntry`
 option. `moduleBaseURL` tells the router the path the site is deployed under;
 see [Routing](./routing.md#client-side-navigation) for the other options.
 

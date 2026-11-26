@@ -201,6 +201,11 @@ set the `Html` option), and the build writes them over the copy of
 `index.html` in `dist/static/`. See
 [Build Output](./docs/build-output.md#diststatic--deploy-this).
 
+The `<title>` in this file is the dev server's tab title only. It is not
+copied into prerendered pages or the edge document. Those get their
+`<title>` from [`head.ts`](./docs/routing.md#per-route-head-and-meta) or from
+the `Html` component. The two titles are separate.
+
 ### Check that it works
 
 Check the types:
@@ -366,7 +371,7 @@ configuration there. Chakra's
 includes such a wrapper.
 
 vprs discovers packages with a React peer dependency using
-[`vitefu.crawlFrameworkPkgs`](https://github.com/svitejs/vitefu). Adjust the
+[`vitefu.crawlFrameworkPkgs`](https://github.com/bluwy/vitefu). Adjust the
 detected list when necessary:
 
 ```ts
